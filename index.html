@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>BMS Studio</title>
+  <title>BMS Studio • 24V 200Ah</title>
   <style>
     :root {
       --bg: #060913;
@@ -22,6 +22,7 @@
       --rose: #f43f5e;
       --rose-glow: rgba(244, 63, 94, 0.22);
       --blue: #3b82f6;
+      --blue-glow: rgba(59, 130, 246, 0.22);
     }
 
     * {
@@ -29,10 +30,14 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
       margin: 0;
-      padding: 16px 14px 44px;
+      padding: 14px 14px 48px;
       background-color: var(--bg);
       background-image:
         radial-gradient(circle at 15% 0%, rgba(16, 185, 129, 0.14), transparent 45%),
@@ -53,7 +58,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       padding: 2px 2px;
     }
 
@@ -77,7 +82,7 @@
     }
 
     .header h1 {
-      font-size: 21px;
+      font-size: 20px;
       font-weight: 800;
       margin: 0;
       letter-spacing: -0.4px;
@@ -120,12 +125,58 @@
       50% { opacity: 0.35; transform: scale(0.8); }
     }
 
+    /* Segmented Tabs Switcher */
+    .tabs-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: rgba(10, 15, 29, 0.8);
+      border: 1px solid var(--border-highlight);
+      padding: 5px;
+      border-radius: 16px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(16px);
+    }
+
+    .tab-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(59, 130, 246, 0.18));
+      color: var(--text);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .tab-count {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
     /* Quick Connect Dock */
     .connect-bar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 8px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .connect-btn {
@@ -134,15 +185,15 @@
       background: var(--card);
       backdrop-filter: blur(16px);
       color: var(--text);
-      padding: 11px 6px;
-      border-radius: 16px;
-      font-size: 13px;
+      padding: 10px 6px;
+      border-radius: 15px;
+      font-size: 12px;
       font-weight: 700;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
       position: relative;
       overflow: hidden;
       transition: transform 0.14s ease, border-color 0.2s ease, background 0.2s ease;
@@ -173,38 +224,388 @@
       letter-spacing: 0.2px;
     }
 
-    /* Summary Banner when multiple batteries connected */
-    .summary-bar {
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(59, 130, 246, 0.12));
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 18px;
-      padding: 12px 16px;
-      margin-bottom: 16px;
+    .tab-pane {
       display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* ==========================================
+       TAB 1: VISUAL 24V 200Ah HOME TOPOLOGY
+       ========================================== */
+    .inverter-hero {
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.16) 0%, rgba(18, 25, 43, 0.88) 55%, rgba(59, 130, 246, 0.15) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.32);
+      border-radius: 24px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .inv-top {
+      display: flex;
       justify-content: space-between;
-      align-items: center;
-      backdrop-filter: blur(16px);
+      align-items: flex-start;
+      margin-bottom: 14px;
+      gap: 8px;
     }
 
-    .summary-item {
-      text-align: center;
-    }
-
-    .summary-label {
-      font-size: 10px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-bottom: 2px;
-    }
-
-    .summary-val {
-      font-size: 15px;
+    .inv-title {
+      font-size: 16px;
       font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      letter-spacing: -0.3px;
+    }
+
+    .inv-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .topo-mode-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.18);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #60a5fa;
+      white-space: nowrap;
+    }
+
+    .topo-mode-badge.full {
+      background: var(--emerald-glow);
+      border-color: rgba(16, 185, 129, 0.45);
+      color: #34d399;
+    }
+
+    .inv-main-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    .inv-big-v {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .inv-big-v .unit {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .inv-power-pill {
+      font-size: 13px;
+      font-weight: 800;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text);
       font-variant-numeric: tabular-nums;
     }
 
-    /* Cards Container */
+    .inv-power-pill.charging {
+      background: var(--emerald-glow);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .inv-power-pill.discharging {
+      background: var(--amber-glow);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+
+    .bus-bar {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 11px 8px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+    }
+
+    .bus-item {
+      text-align: center;
+      border-right: 1px solid rgba(255, 255, 255, 0.07);
+      padding: 0 4px;
+    }
+
+    .bus-item:last-child {
+      border-right: none;
+    }
+
+    .bus-label {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 3px;
+      font-weight: 600;
+    }
+
+    .bus-val {
+      font-size: 15px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    .bus-sub {
+      font-size: 9.5px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Visual Parallel Strings */
+    .strings-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .string-card {
+      background: var(--card);
+      backdrop-filter: blur(22px);
+      border: 1px solid var(--border-highlight);
+      border-radius: 24px;
+      padding: 16px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+    }
+
+    .string-card.active-string {
+      border-color: rgba(16, 185, 129, 0.38);
+    }
+
+    .string-card.standby-string {
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .string-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      gap: 8px;
+    }
+
+    .string-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .string-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .string-badge {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .string-badge.standby {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }
+
+    /* Visual Series Pair inside String */
+    .series-visual {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .series-pair-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .vis-bat-card {
+      background: var(--card-inner);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 18px;
+      padding: 13px;
+      cursor: pointer;
+      transition: transform 0.14s ease, border-color 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .vis-bat-card:active {
+      transform: scale(0.97);
+    }
+
+    .vis-bat-card.connected {
+      border-color: rgba(16, 185, 129, 0.42);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.09) 0%, rgba(10, 15, 29, 0.78) 100%);
+    }
+
+    .vis-bat-card.standby-conn {
+      border-color: rgba(245, 158, 11, 0.42);
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.09) 0%, rgba(10, 15, 29, 0.78) 100%);
+    }
+
+    .vis-bat-card.empty-slot {
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.02);
+      min-height: 138px;
+    }
+
+    .vis-bat-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .vis-bat-name {
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .vis-pole {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--muted);
+    }
+
+    .vis-soc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .vis-soc {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.6px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .vis-v {
+      font-size: 14px;
+      font-weight: 800;
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .vis-bar {
+      height: 7px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-bottom: 9px;
+    }
+
+    .vis-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #059669, #10b981, #34d399);
+      transition: width 0.35s ease;
+    }
+
+    .vis-meta-grid {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .vis-meta-grid b {
+      color: #e2e8f0;
+      font-weight: 700;
+    }
+
+    /* Active Balancer Bridge Banner between the 2 batteries in series */
+    .balancer-bridge {
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.32);
+      border-radius: 14px;
+      padding: 9px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .balancer-bridge.warn {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+
+    .balancer-bridge.bad {
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.4);
+    }
+
+    .balancer-bridge.inactive {
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+    }
+
+    .bal-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    .bal-right {
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #22d3ee;
+    }
+
+    .balancer-bridge.warn .bal-right { color: #fbbf24; }
+    .balancer-bridge.bad .bal-right  { color: #fb7185; }
+    .balancer-bridge.inactive .bal-right { color: var(--muted); font-weight: 600; }
+
+    /* ==========================================
+       TAB 2: DETAILED TELEMETRY CARDS
+       ========================================== */
     .cards {
       display: flex;
       flex-direction: column;
@@ -215,20 +616,19 @@
       background: var(--card);
       border: 1px dashed rgba(255, 255, 255, 0.14);
       border-radius: 22px;
-      padding: 38px 20px;
+      padding: 32px 20px;
       text-align: center;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13px;
       backdrop-filter: blur(16px);
     }
 
     .empty-icon {
-      font-size: 32px;
-      margin-bottom: 10px;
+      font-size: 30px;
+      margin-bottom: 8px;
       opacity: 0.85;
     }
 
-    /* Battery Card */
     .card {
       background: var(--card);
       backdrop-filter: blur(22px);
@@ -241,6 +641,26 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
       position: relative;
       overflow: hidden;
+    }
+
+    .card-role-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 10px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      color: #34d399;
+    }
+
+    .card-role-bar.role-b {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.28);
+      color: #fbbf24;
     }
 
     .card-top {
@@ -274,6 +694,7 @@
       border-radius: 50%;
       background: var(--emerald);
       box-shadow: 0 0 10px var(--emerald);
+      flex-shrink: 0;
     }
 
     .dot.off {
@@ -313,7 +734,6 @@
       color: var(--text);
     }
 
-    /* Hero SOC + Energy Block */
     .soc-panel {
       background: var(--card-inner);
       border: 1px solid var(--border);
@@ -421,7 +841,6 @@
       box-shadow: 0 0 12px rgba(244, 63, 94, 0.4);
     }
 
-    /* Hero Metrics Grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -457,7 +876,6 @@
       color: var(--muted);
     }
 
-    /* Status Switches Row */
     .switches-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -508,7 +926,6 @@
       color: #22d3ee;
     }
 
-    /* Cells Section */
     .cells-panel {
       background: var(--card-inner);
       border: 1px solid var(--border);
@@ -626,7 +1043,6 @@
     .cell-item.is-max .cell-bar-fill { background: #f59e0b; }
     .cell-item.is-bal .cell-bar-fill { background: #06b6d4; }
 
-    /* Footer */
     .card-footer {
       display: flex;
       justify-content: space-between;
@@ -662,12 +1078,13 @@
 <body>
 
 <div class="container">
+  <!-- Header -->
   <div class="header">
     <div class="title-wrap">
       <div class="app-icon">⚡</div>
       <div>
         <h1>BMS Studio</h1>
-        <div class="header-sub">LiFePO4 Bluetooth Телеметрія</div>
+        <div class="header-sub">Домашня система 24V • 2S2P (200Ah)</div>
       </div>
     </div>
     <div class="live-badge">
@@ -676,41 +1093,46 @@
     </div>
   </div>
 
+  <!-- Quick BLE Connect Buttons -->
   <div class="connect-bar">
     <button id="btn-sandisolar" class="connect-btn" onclick="connectBattery('sandisolar')">
       <span>Sandisolar</span>
-      <span class="sub">HL12100</span>
-    </button>
-    <button id="btn-humsienk" class="connect-btn" onclick="connectBattery('humsienk')">
-      <span>Humsienk</span>
-      <span class="sub">HS0302</span>
+      <span class="sub">Гілка А • 1/2</span>
     </button>
     <button id="btn-sjy" class="connect-btn" onclick="connectBattery('sjy')">
       <span>SJY</span>
-      <span class="sub">DP04</span>
+      <span class="sub">Гілка А • 2/2</span>
+    </button>
+    <button id="btn-humsienk" class="connect-btn" onclick="connectBattery('humsienk')">
+      <span>Humsienk</span>
+      <span class="sub">Гілка Б • 1/2</span>
     </button>
     <button class="connect-btn" onclick="connectBattery('all')">
-      <span>Всі BLE</span>
-      <span class="sub">Пошук</span>
+      <span>+ Додати</span>
+      <span class="sub">Всі BLE</span>
     </button>
   </div>
 
-  <div id="summary-bar" class="summary-bar">
-    <div class="summary-item">
-      <div class="summary-label">Напруга збірки</div>
-      <div id="sum-volt" class="summary-val">—</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-label">Загальна потужність</div>
-      <div id="sum-power" class="summary-val">—</div>
-    </div>
-    <div class="summary-item">
-      <div class="summary-label">Підключено</div>
-      <div id="sum-count" class="summary-val">0 АКБ</div>
-    </div>
+  <!-- 2-Tab Switcher -->
+  <div class="tabs-bar">
+    <button id="tab-btn-visual" class="tab-btn active" onclick="switchTab('visual')">
+      <span>🏠 Схема 24V</span>
+    </button>
+    <button id="tab-btn-details" class="tab-btn" onclick="switchTab('details')">
+      <span>📊 Детально</span>
+      <span id="tab-count-badge" class="tab-count">0</span>
+    </button>
   </div>
 
-  <div id="cards" class="cards"></div>
+  <!-- TAB 1: VISUAL SYSTEM OVERVIEW -->
+  <div id="tab-visual" class="tab-pane active">
+    <div id="topology-panel"></div>
+  </div>
+
+  <!-- TAB 2: DETAILED CARDS (CELLS, MOSFETS, CYCLES) -->
+  <div id="tab-details" class="tab-pane">
+    <div id="cards" class="cards"></div>
+  </div>
 </div>
 
 <script>
@@ -736,6 +1158,23 @@ const OPTIONAL_SERVICES = [
 ];
 
 const sessions = {};
+let activeTab = 'visual';
+
+function switchTab(tabName) {
+  activeTab = tabName;
+  document.getElementById('tab-btn-visual').classList.toggle('active', tabName === 'visual');
+  document.getElementById('tab-btn-details').classList.toggle('active', tabName === 'details');
+  document.getElementById('tab-visual').classList.toggle('active', tabName === 'visual');
+  document.getElementById('tab-details').classList.toggle('active', tabName === 'details');
+}
+
+function openBatteryDetails(sessionId) {
+  switchTab('details');
+  setTimeout(() => {
+    const el = document.getElementById('card-' + sessionId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+}
 
 function hexToBytes(hex) {
   const arr = new Uint8Array(hex.length / 2);
@@ -840,7 +1279,8 @@ async function setupDeviceSession(device) {
     rxBuf: new Uint8Array(0),
     hsFrames: {},
     polling: false,
-    timer: null
+    timer: null,
+    createdAt: Date.now()
   };
 
   sessions[device.id] = session;
@@ -1175,6 +1615,12 @@ function fmt(v, digits = 2) {
   return (v !== undefined && v !== null && !isNaN(v)) ? Number(v).toFixed(digits) : '—';
 }
 
+function getCellDeltaMv(session) {
+  if (!session || !session.data || !session.data.cells || session.data.cells.length === 0) return null;
+  const cells = session.data.cells;
+  return Math.round((Math.max(...cells) - Math.min(...cells)) * 1000);
+}
+
 function formatEta(d) {
   const cur = d.current || 0;
   const rem = d.remCap;
@@ -1197,6 +1643,264 @@ function formatEta(d) {
   return `${prefix}${h > 0 ? h + ' год ' : ''}${m} хв`;
 }
 
+function getTopologySlots(list) {
+  const sandi = list.find(s => s.brand === 'Sandisolar') || null;
+  const sjy = list.find(s => s.brand === 'SJY') || null;
+  const hums = list
+    .filter(s => s.brand === 'Humsienk')
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const hs1 = hums[0] || null;
+  const hs2 = hums[1] || null;
+  return { sandi, sjy, hs1, hs2 };
+}
+
+function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode, isStandby = false) {
+  if (!session) {
+    return `
+      <div class="vis-bat-card empty-slot" onclick="connectBattery('${connectMode}')">
+        <div class="vis-bat-top">
+          <span class="vis-bat-name">${title}</span>
+          <span class="vis-pole">${poleText}</span>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin: 10px 0;">${subtitle}</div>
+        <div style="font-size:11px; font-weight:800; color:#60a5fa;">＋ Підключити BLE</div>
+      </div>
+    `;
+  }
+
+  const d = session.data || {};
+  const soc = d.soc !== undefined ? d.soc : 0;
+  const deltaMv = getCellDeltaMv(session);
+  const cur = d.current !== undefined ? `${d.current >= 0 ? '+' : ''}${d.current.toFixed(1)} A` : '—';
+  const temp = (d.temps && d.temps.length > 0) ? `${d.temps[0]}°C` : '';
+  const stateCls = isStandby ? 'standby-conn' : 'connected';
+
+  return `
+    <div class="vis-bat-card ${stateCls}" onclick="openBatteryDetails('${session.id}')">
+      <div>
+        <div class="vis-bat-top">
+          <span class="vis-bat-name">
+            <span class="dot ${session.connected ? '' : 'off'}"></span>
+            ${session.brand}
+          </span>
+          <span class="vis-pole">${poleText}</span>
+        </div>
+
+        <div class="vis-soc-row">
+          <span class="vis-soc">${d.soc !== undefined ? d.soc + '%' : '—'}</span>
+          <span class="vis-v">${fmt(d.voltage, 2)} V</span>
+        </div>
+
+        <div class="vis-bar">
+          <div class="vis-bar-fill" style="width:${Math.min(100, Math.max(4, soc))}%"></div>
+        </div>
+      </div>
+
+      <div class="vis-meta-grid">
+        <span><b>${cur}</b></span>
+        <span>${deltaMv !== null ? `Δ <b>${deltaMv}</b>mV` : (temp || 'Деталі →')}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderTopology(list) {
+  const panel = document.getElementById('topology-panel');
+  const { sandi, sjy, hs1, hs2 } = getTopologySlots(list);
+
+  // String A (Sandisolar + SJY in series 24V)
+  const vSandi = sandi && sandi.data.voltage ? sandi.data.voltage : 0;
+  const vSjy   = sjy && sjy.data.voltage ? sjy.data.voltage : 0;
+  const stringAComplete = Boolean(vSandi > 0 && vSjy > 0);
+  const stringAVolt = vSandi + vSjy;
+
+  let stringACurrent = 0;
+  if (sandi && sandi.data.current !== undefined && sjy && sjy.data.current !== undefined) {
+    stringACurrent = (sandi.data.current + sjy.data.current) / 2;
+  } else if (sandi && sandi.data.current !== undefined) {
+    stringACurrent = sandi.data.current;
+  } else if (sjy && sjy.data.current !== undefined) {
+    stringACurrent = sjy.data.current;
+  }
+  const stringAPower = (sandi ? (sandi.data.power || 0) : 0) + (sjy ? (sjy.data.power || 0) : 0);
+
+  // Inter-battery delta on String A (External 24V Active Balancer)
+  let balACls = 'inactive';
+  let balAText = 'Підключіть обидва АКБ гілки А';
+  if (stringAComplete) {
+    const balADeltaMv = Math.round(Math.abs(vSandi - vSjy) * 1000);
+    balACls = balADeltaMv <= 60 ? '' : (balADeltaMv <= 220 ? 'warn' : 'bad');
+    balAText = `Δ між АКБ: ${(balADeltaMv / 1000).toFixed(2)} V (${balADeltaMv} mV)`;
+  }
+
+  // String B (Humsienk #1 + Humsienk #2 in series 24V)
+  const vHs1 = hs1 && hs1.data.voltage ? hs1.data.voltage : 0;
+  const vHs2 = hs2 && hs2.data.voltage ? hs2.data.voltage : 0;
+  const stringBComplete = Boolean(vHs1 > 0 && vHs2 > 0);
+  const stringBVolt = vHs1 + vHs2;
+
+  let stringBCurrent = 0;
+  if (stringBComplete) {
+    stringBCurrent = ((hs1.data.current || 0) + (hs2.data.current || 0)) / 2;
+  } else if (hs1 && hs1.data.current !== undefined) {
+    stringBCurrent = hs1.data.current;
+  }
+  const stringBPower = (hs1 ? (hs1.data.power || 0) : 0) + (hs2 ? (hs2.data.power || 0) : 0);
+
+  let balBCls = 'inactive';
+  let balBText = 'Очікується 2-й Humsienk для пари 24V';
+  if (stringBComplete) {
+    const balBDeltaMv = Math.round(Math.abs(vHs1 - vHs2) * 1000);
+    balBCls = balBDeltaMv <= 60 ? '' : (balBDeltaMv <= 220 ? 'warn' : 'bad');
+    balBText = `Δ між АКБ: ${(balBDeltaMv / 1000).toFixed(2)} V (${balBDeltaMv} mV)`;
+  }
+
+  // 24V Main Inverter Bus Summary
+  let busVoltNum = null;
+  let busVoltSuffix = '';
+  if (stringAComplete && stringBComplete) {
+    busVoltNum = (stringAVolt + stringBVolt) / 2;
+  } else if (stringAComplete) {
+    busVoltNum = stringAVolt;
+  } else if (stringBComplete) {
+    busVoltNum = stringBVolt;
+  } else if (vSandi > 0 || vSjy > 0) {
+    busVoltNum = vSandi + vSjy;
+    busVoltSuffix = ' (1/2)';
+  }
+
+  const anyActive = Boolean(vSandi || vSjy || stringBComplete);
+  const totalCurrent = stringACurrent + (stringBComplete ? stringBCurrent : 0);
+  const totalPower = stringAPower + (stringBComplete ? stringBPower : 0);
+
+  let flowClass = '';
+  let flowText = 'Режим очікування';
+  if (anyActive) {
+    if (totalCurrent > 0.1) {
+      flowClass = 'charging';
+      flowText = `⚡ Зарядка +${Math.round(totalPower)} W`;
+    } else if (totalCurrent < -0.1) {
+      flowClass = 'discharging';
+      flowText = `🏠 Живлення ${Math.round(Math.abs(totalPower))} W`;
+    } else {
+      flowText = 'Спокій • 0 W';
+    }
+  }
+
+  // Energy kWh calculation
+  const kwhA = stringAComplete
+    ? (((sandi.data.remCap || 100) + (sjy.data.remCap || 100)) / 2) * 25.6 / 1000
+    : ((vSandi || vSjy) ? 2.56 : 0);
+  const kwhB = stringBComplete
+    ? (((hs1.data.remCap || 100) + (hs2.data.remCap || 100)) / 2) * 25.6 / 1000
+    : 0;
+  const totalKwh = (kwhA + kwhB) || 2.56;
+
+  panel.innerHTML = `
+    <!-- INVERTER 24V MAIN BUS -->
+    <div class="inverter-hero">
+      <div class="inv-top">
+        <div>
+          <div class="inv-title">🔌 Інвертор • Шина 24V</div>
+          <div class="inv-sub">Паралельне об'єднання Гілки А + Гілки Б</div>
+        </div>
+        <span class="topo-mode-badge ${stringBComplete ? 'full' : ''}">
+          ${stringBComplete ? '24V 200Ah (2S2P)' : '24V 100Ah + Резерв'}
+        </span>
+      </div>
+
+      <div class="inv-main-row">
+        <div class="inv-big-v">
+          ${busVoltNum !== null ? busVoltNum.toFixed(2) : '—'}
+          <span class="unit">V${busVoltSuffix}</span>
+        </div>
+        <div class="inv-power-pill ${flowClass}">${flowText}</div>
+      </div>
+
+      <div class="bus-bar">
+        <div class="bus-item">
+          <div class="bus-label">Загальний струм</div>
+          <div class="bus-val">${anyActive ? (totalCurrent >= 0 ? '+' : '') + totalCurrent.toFixed(2) + ' A' : '—'}</div>
+          <div class="bus-sub">Гілка А + Б</div>
+        </div>
+        <div class="bus-item">
+          <div class="bus-label">Запас енергії</div>
+          <div class="bus-val">${totalKwh.toFixed(2)} кВт·год</div>
+          <div class="bus-sub">Ціль: 5.12 кВт·год</div>
+        </div>
+        <div class="bus-item">
+          <div class="bus-label">Ємність 24V</div>
+          <div class="bus-val">${stringBComplete ? '200' : '100'} / 200 Ah</div>
+          <div class="bus-sub">${stringBComplete ? 'Обидві пари' : '1 пара в роботі'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PARALLEL STRINGS A & B -->
+    <div class="strings-wrap">
+      <!-- STRING A -->
+      <div class="string-card active-string">
+        <div class="string-head">
+          <div>
+            <div class="string-title">⚡ Гілка А • Основна пара 24V</div>
+            <div class="string-sub">Sandisolar + SJY з'єднані послідовно (12V + 12V = 24V 100Ah)</div>
+          </div>
+          <span class="string-badge">
+            ${(vSandi || vSjy) ? `${stringAVolt.toFixed(2)} V` : '24V 100Ah'}
+          </span>
+        </div>
+
+        <div class="series-visual">
+          <div class="series-pair-grid">
+            ${renderVisualBatterySlot(sandi, 'Sandisolar', '+ 24V (1/2)', 'HL12100 • 12V 100Ah', 'sandisolar', false)}
+            ${renderVisualBatterySlot(sjy, 'SJY', '— 0V (2/2)', 'DP04S007 • 12V 100Ah', 'sjy', false)}
+          </div>
+
+          <div class="balancer-bridge ${balACls}">
+            <div class="bal-left">
+              <span>⚖️</span>
+              <span>Активний балансир 24V</span>
+            </div>
+            <div class="bal-right">${balAText}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STRING B -->
+      <div class="string-card ${stringBComplete ? 'active-string' : 'standby-string'}">
+        <div class="string-head">
+          <div>
+            <div class="string-title">🔋 Гілка Б • Друга пара 24V (Humsienk)</div>
+            <div class="string-sub">
+              ${stringBComplete
+                ? 'Humsienk #1 + #2 послідовно (Паралельно з Гілкою А -> 200Ah)'
+                : 'Humsienk #1 зараз стоїть окремо • Чекає 2-й Humsienk для 24V пари'}
+            </div>
+          </div>
+          <span class="string-badge ${stringBComplete ? '' : 'standby'}">
+            ${stringBComplete ? `${stringBVolt.toFixed(2)} V` : (vHs1 ? `Резерв ${vHs1.toFixed(2)}V` : 'Очікує пару')}
+          </span>
+        </div>
+
+        <div class="series-visual">
+          <div class="series-pair-grid">
+            ${renderVisualBatterySlot(hs1, 'Humsienk #1', stringBComplete ? '+ 24V (1/2)' : 'Резерв 12V', 'HS0302 • Поки стоїть окремо', 'humsienk', !stringBComplete)}
+            ${renderVisualBatterySlot(hs2, 'Humsienk #2', '— 0V (2/2)', '📦 В дорозі • Підключити для 24V 200Ah', 'humsienk', false)}
+          </div>
+
+          <div class="balancer-bridge ${balBCls}">
+            <div class="bal-left">
+              <span>${stringBComplete ? '⚖️' : '🔗'}</span>
+              <span>Послідовна шина Гілки Б</span>
+            </div>
+            <div class="bal-right">${balBText}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function updateTopHighlights(list) {
   const brands = new Set(list.filter(s => s.connected).map(s => s.brand.toLowerCase()));
   const map = { sandisolar: 'btn-sandisolar', humsienk: 'btn-humsienk', sjy: 'btn-sjy' };
@@ -1204,31 +1908,41 @@ function updateTopHighlights(list) {
     const el = document.getElementById(btnId);
     if (el) el.classList.toggle('connected', brands.has(key));
   }
+  const badge = document.getElementById('tab-count-badge');
+  if (badge) badge.textContent = list.length;
 
-  const sumBar = document.getElementById('summary-bar');
-  if (list.length >= 2) {
-    sumBar.style.display = 'flex';
-    const totalV = list.reduce((acc, s) => acc + (s.data.voltage || 0), 0);
-    const totalP = list.reduce((acc, s) => acc + (s.data.power || 0), 0);
-    document.getElementById('sum-volt').textContent = totalV.toFixed(2) + ' V';
-    document.getElementById('sum-power').textContent = Math.round(totalP) + ' W';
-    document.getElementById('sum-count').textContent = list.length + ' АКБ';
-  } else {
-    sumBar.style.display = 'none';
+  renderTopology(list);
+}
+
+function getRoleBadge(s, slots) {
+  if (s.brand === 'Sandisolar') {
+    return { cls: '', text: '🔗 Гілка А (24V) • Послідовно 1/2 з SJY + Балансир' };
   }
+  if (s.brand === 'SJY') {
+    return { cls: '', text: '🔗 Гілка А (24V) • Послідовно 2/2 з Sandisolar + Балансир' };
+  }
+  if (s.brand === 'Humsienk') {
+    if (slots.hs1 && slots.hs2) {
+      const idx = (slots.hs1.id === s.id) ? '1/2' : '2/2';
+      return { cls: '', text: `🔗 Гілка Б (24V) • Humsienk Послідовно ${idx} (В паралелі)` };
+    }
+    return { cls: 'role-b', text: '⏳ Гілка Б • Humsienk #1 (Поки стоїть окремо — чекає пару до 24V)' };
+  }
+  return { cls: '', text: '🔋 Додатковий акумулятор' };
 }
 
 function renderCards() {
   const container = document.getElementById('cards');
   const list = Object.values(sessions);
+  const slots = getTopologySlots(list);
   updateTopHighlights(list);
 
   if (list.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🔋</div>
-        <div style="font-weight:700; color:#e2e8f0; margin-bottom:4px;">Немає активних підключень</div>
-        <div>Натисніть на кнопку акумулятора зверху, щоб підключитися по Bluetooth</div>
+        <div style="font-weight:700; color:#e2e8f0; margin-bottom:4px;">Немає підключених акумуляторів</div>
+        <div>Натисніть на кнопку потрібного акумулятора зверху, щоб зчитати комірки та BMS</div>
       </div>
     `;
     return;
@@ -1271,6 +1985,8 @@ function renderCards() {
       ? '#' + s.name.replace(/[^A-Za-z0-9]/g, '').slice(-4)
       : '';
 
+    const role = getRoleBadge(s, slots);
+
     const cellsHtml = cells.map((cv, idx) => {
       const isBal = Boolean(d.balMask && (d.balMask & (1 << idx)));
       const isMin = !isBal && idx === minIdx && deltaMv > 2;
@@ -1300,7 +2016,9 @@ function renderCards() {
     const etaStr = formatEta(d);
 
     return `
-      <div class="card">
+      <div id="card-${s.id}" class="card">
+        <div class="card-role-bar ${role.cls}">${role.text}</div>
+
         <div class="card-top">
           <div>
             <div class="brand-title">
