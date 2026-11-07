@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>BMS Studio • 24V 200Ah</title>
   <style>
     :root {
@@ -109,6 +112,7 @@
       align-items: center;
       gap: 6px;
       backdrop-filter: blur(10px);
+      cursor: pointer;
     }
 
     .pulse-dot {
@@ -176,7 +180,7 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .connect-btn {
@@ -697,6 +701,12 @@
       flex-shrink: 0;
     }
 
+    .dot.connecting {
+      background: var(--amber);
+      box-shadow: 0 0 10px var(--amber);
+      animation: pulse 1.2s infinite;
+    }
+
     .dot.off {
       background: var(--rose);
       box-shadow: 0 0 8px var(--rose);
@@ -1087,9 +1097,9 @@
         <div class="header-sub">Домашня система 24V • 2S2P (200Ah)</div>
       </div>
     </div>
-    <div class="live-badge">
+    <div class="live-badge" onclick="tryAutoConnectRemembered()" title="Автопідключення збережених АКБ">
       <span class="pulse-dot"></span>
-      <span>LIVE 2с</span>
+      <span id="live-status-text">АВТО 2с</span>
     </div>
   </div>
 
@@ -1157,8 +1167,102 @@ const OPTIONAL_SERVICES = [
   '11110001-1111-1111-1111-111111111111'
 ];
 
+const STORAGE_KEY = 'bms_studio_saved_v2';
 const sessions = {};
 let activeTab = 'visual';
+let autoConnecting = false;
+
+function saveStateToStorage() {
+  try {
+    const payload = {};
+    for (const [id, s] of Object.entries(sessions)) {
+      if (s.manualClose) continue;
+      payload[id] = {
+        id: s.id,
+        name: s.name,
+        brand: s.brand,
+        type: s.type,
+        createdAt: s.createdAt || Date.now(),
+        lastUpdateStr: s.lastUpdate instanceof Date
+          ? s.lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          : s.lastUpdate,
+        data: s.data || {}
+      };
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (e) {}
+}
+
+function restoreCachedSessions() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    for (const [id, item] of Object.entries(saved)) {
+      if (!sessions[id]) {
+        sessions[id] = {
+          id: item.id,
+          device: null,
+          name: item.name || 'BLE BMS',
+          brand: item.brand || detectBrandByName(item.name || ''),
+          type: item.type || null,
+          server: null,
+          txChar: null,
+          rxChar: null,
+          connected: false,
+          reconnecting: false,
+          lastUpdate: item.lastUpdateStr ? `${item.lastUpdateStr} (кеш)` : 'очікує BLE...',
+          error: null,
+          data: item.data || {},
+          rxBuf: new Uint8Array(0),
+          hsFrames: {},
+          polling: false,
+          timer: null,
+          createdAt: item.createdAt || Date.now()
+        };
+      }
+    }
+  } catch (e) {}
+}
+
+async function tryAutoConnectRemembered() {
+  if (autoConnecting) return;
+  if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') return;
+  autoConnecting = true;
+  const statusEl = document.getElementById('live-status-text');
+  try {
+    const devices = await navigator.bluetooth.getDevices();
+    if (!devices || devices.length === 0) return;
+
+    if (statusEl) statusEl.textContent = 'З’ЄДНАННЯ...';
+
+    for (const dev of devices) {
+      const existing = sessions[dev.id];
+      if (existing && existing.connected) continue;
+      if (existing && existing.manualClose) continue;
+
+      // Also attach watchAdvertisements if supported by browser
+      if (typeof dev.watchAdvertisements === 'function') {
+        try {
+          dev.addEventListener('advertisementreceived', () => {
+            const s = sessions[dev.id];
+            if (s && !s.connected && !s.reconnecting && !s.manualClose) {
+              connectAndInit(s);
+            }
+          });
+          dev.watchAdvertisements().catch(() => {});
+        } catch (e) {}
+      }
+
+      await setupDeviceSession(dev);
+      await new Promise(r => setTimeout(r, 650));
+    }
+  } catch (e) {
+  } finally {
+    if (statusEl) statusEl.textContent = 'LIVE 2с';
+    autoConnecting = false;
+  }
+}
 
 function switchTab(tabName) {
   activeTab = tabName;
@@ -1168,7 +1272,16 @@ function switchTab(tabName) {
   document.getElementById('tab-details').classList.toggle('active', tabName === 'details');
 }
 
-function openBatteryDetails(sessionId) {
+function openBatteryDetails(sessionId, connectMode) {
+  const s = sessions[sessionId];
+  if (s && !s.connected && !s.reconnecting) {
+    if (s.device) {
+      manualReconnect(sessionId);
+    } else if (connectMode) {
+      connectBattery(connectMode);
+      return;
+    }
+  }
   switchTab('details');
   setTimeout(() => {
     const el = document.getElementById('card-' + sessionId);
@@ -1258,32 +1371,50 @@ function detectBrandByName(name) {
   return 'Акумулятор';
 }
 
+function detectConnectModeByBrand(brand) {
+  if (brand === 'Sandisolar') return 'sandisolar';
+  if (brand === 'SJY') return 'sjy';
+  if (brand === 'Humsienk') return 'humsienk';
+  return 'all';
+}
+
 async function setupDeviceSession(device) {
-  if (sessions[device.id] && sessions[device.id].timer) {
-    clearInterval(sessions[device.id].timer);
+  const prev = sessions[device.id];
+  if (prev && prev.timer) {
+    clearInterval(prev.timer);
+  }
+
+  // Remove any stale cached entry of same name/brand if ID changed
+  for (const [k, v] of Object.entries(sessions)) {
+    if (k !== device.id && !v.device && v.name === device.name) {
+      delete sessions[k];
+    }
   }
 
   const session = {
     id: device.id,
     device: device,
-    name: device.name || 'BLE BMS',
-    brand: detectBrandByName(device.name || ''),
-    type: null,
+    name: device.name || (prev ? prev.name : 'BLE BMS'),
+    brand: detectBrandByName(device.name || (prev ? prev.name : '')),
+    type: prev ? prev.type : null,
     server: null,
     txChar: null,
     rxChar: null,
     connected: false,
-    lastUpdate: null,
+    reconnecting: false,
+    manualClose: false,
+    lastUpdate: prev ? prev.lastUpdate : null,
     error: null,
-    data: {},
+    data: prev && prev.data ? prev.data : {},
     rxBuf: new Uint8Array(0),
     hsFrames: {},
     polling: false,
     timer: null,
-    createdAt: Date.now()
+    createdAt: (prev && prev.createdAt) ? prev.createdAt : Date.now()
   };
 
   sessions[device.id] = session;
+  saveStateToStorage();
   renderCards();
 
   device.addEventListener('gattserverdisconnected', () => {
@@ -1303,7 +1434,7 @@ async function setupDeviceSession(device) {
 }
 
 async function connectAndInit(session) {
-  if (session.reconnecting) return;
+  if (!session.device || session.reconnecting) return;
   session.reconnecting = true;
   try {
     session.error = null;
@@ -1361,10 +1492,10 @@ async function connectAndInit(session) {
     }, 2200);
 
   } catch (err) {
-    session.error = err.message || String(err);
-    renderCards();
+    session.connected = false;
   } finally {
     session.reconnecting = false;
+    renderCards();
   }
 }
 
@@ -1450,6 +1581,7 @@ function parseSaihang(session, m) {
   };
   session.lastUpdate = new Date();
   session.error = null;
+  saveStateToStorage();
   renderCards();
 }
 
@@ -1501,6 +1633,7 @@ function parseHumsienk(session) {
   session.data = d;
   session.lastUpdate = new Date();
   session.error = null;
+  saveStateToStorage();
   renderCards();
 }
 
@@ -1552,6 +1685,7 @@ function parseJbdFrame(session, f) {
   session.data = d;
   session.lastUpdate = new Date();
   session.error = null;
+  saveStateToStorage();
   renderCards();
 }
 
@@ -1582,9 +1716,15 @@ async function pollSession(session) {
 
 async function manualReconnect(id) {
   const s = sessions[id];
-  if (s) {
-    s.manualClose = false;
+  if (!s) return;
+  s.manualClose = false;
+  if (s.device) {
     await connectAndInit(s);
+  } else {
+    await tryAutoConnectRemembered();
+    if (!s.device) {
+      await connectBattery(detectConnectModeByBrand(s.brand));
+    }
   }
 }
 
@@ -1599,17 +1739,27 @@ function disconnectDevice(id) {
     }
   } catch (e) {}
   delete sessions[id];
+  saveStateToStorage();
   renderCards();
 }
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    tryAutoConnectRemembered();
     Object.values(sessions).forEach(s => {
       if (s.connected) pollSession(s);
-      else if (!s.manualClose) connectAndInit(s);
+      else if (!s.manualClose && s.device) connectAndInit(s);
     });
   }
 });
+
+// Background auto-reconnect loop every 4 seconds for remembered devices
+setInterval(() => {
+  const hasDisconnected = Object.values(sessions).some(s => !s.connected && !s.manualClose);
+  if (hasDisconnected || Object.keys(sessions).length === 0) {
+    tryAutoConnectRemembered();
+  }
+}, 4000);
 
 function fmt(v, digits = 2) {
   return (v !== undefined && v !== null && !isNaN(v)) ? Number(v).toFixed(digits) : '—';
@@ -1672,15 +1822,18 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
   const soc = d.soc !== undefined ? d.soc : 0;
   const deltaMv = getCellDeltaMv(session);
   const cur = d.current !== undefined ? `${d.current >= 0 ? '+' : ''}${d.current.toFixed(1)} A` : '—';
-  const temp = (d.temps && d.temps.length > 0) ? `${d.temps[0]}°C` : '';
   const stateCls = isStandby ? 'standby-conn' : 'connected';
+  const dotCls = session.connected ? '' : (session.reconnecting ? 'connecting' : 'off');
+  const statusHint = session.connected
+    ? (deltaMv !== null ? `Δ <b>${deltaMv}</b>mV` : 'Деталі →')
+    : '↻ Підключити';
 
   return `
-    <div class="vis-bat-card ${stateCls}" onclick="openBatteryDetails('${session.id}')">
+    <div class="vis-bat-card ${stateCls}" onclick="openBatteryDetails('${session.id}', '${connectMode}')">
       <div>
         <div class="vis-bat-top">
           <span class="vis-bat-name">
-            <span class="dot ${session.connected ? '' : 'off'}"></span>
+            <span class="dot ${dotCls}"></span>
             ${session.brand}
           </span>
           <span class="vis-pole">${poleText}</span>
@@ -1698,7 +1851,7 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
 
       <div class="vis-meta-grid">
         <span><b>${cur}</b></span>
-        <span>${deltaMv !== null ? `Δ <b>${deltaMv}</b>mV` : (temp || 'Деталі →')}</span>
+        <span>${statusHint}</span>
       </div>
     </div>
   `;
@@ -1986,6 +2139,7 @@ function renderCards() {
       : '';
 
     const role = getRoleBadge(s, slots);
+    const dotCls = s.connected ? '' : (s.reconnecting ? 'connecting' : 'off');
 
     const cellsHtml = cells.map((cv, idx) => {
       const isBal = Boolean(d.balMask && (d.balMask & (1 << idx)));
@@ -2022,11 +2176,11 @@ function renderCards() {
         <div class="card-top">
           <div>
             <div class="brand-title">
-              <span class="dot ${s.connected ? '' : 'off'}"></span>
+              <span class="dot ${dotCls}"></span>
               <span>${s.brand}</span>
               ${shortId ? `<span class="short-id">${shortId}</span>` : ''}
             </div>
-            <div class="dev-sub">${s.name} • оновлено о ${updatedStr}</div>
+            <div class="dev-sub">${s.name} • ${s.connected ? 'оновлено о ' + updatedStr : 'не на зв’язку (' + updatedStr + ')'}</div>
           </div>
           <div class="card-actions">
             ${!s.connected
@@ -2107,7 +2261,12 @@ function renderCards() {
   }).join('');
 }
 
+// Initialize on load: restore cached devices & auto-connect via navigator.bluetooth.getDevices()
+restoreCachedSessions();
 renderCards();
+window.addEventListener('load', () => {
+  setTimeout(tryAutoConnectRemembered, 300);
+});
 </script>
 </body>
 </html>
