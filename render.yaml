@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: battery-bms-monitor
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
