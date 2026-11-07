@@ -2,181 +2,477 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Моніторинг Акумуляторів (Sandisolar / Humsienk / SJY)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BMS Монітор</title>
   <style>
-    * { box-sizing: border-box; }
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-border: #334155;
+      --surface: #0f172a;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --green: #10b981;
+      --green-bg: rgba(16, 185, 129, 0.14);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.15);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.15);
+      --blue: #3b82f6;
+      --blue-bg: rgba(59, 130, 246, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
       margin: 0;
-      padding: 12px;
-      background: #f4f5f7;
-      color: #111;
-      font-size: 14px;
+      padding: 14px 12px 32px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.35;
     }
-    h1 { font-size: 18px; margin: 0 0 8px 0; }
-    .top-bar {
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 10px;
-      margin-bottom: 12px;
+
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
     }
-    .btn-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    button {
-      padding: 8px 12px;
-      border: 1px solid #333;
-      border-radius: 4px;
-      background: #222;
-      color: #fff;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    button.secondary {
-      background: #fff;
-      color: #222;
-    }
-    button.danger {
-      background: #b91c1c;
-      border-color: #991b1b;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .warn {
-      background: #fff3cd;
-      border: 1px solid #ffecb5;
-      color: #664d03;
-      padding: 8px;
-      border-radius: 4px;
-      margin-bottom: 10px;
-      display: none;
-    }
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 12px;
-    }
-    .card {
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      padding: 10px;
-    }
-    .card-header {
+
+    .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 6px;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
-    .card-title {
+
+    .header h1 {
+      font-size: 20px;
       font-weight: 700;
-      font-size: 16px;
+      margin: 0;
+      letter-spacing: -0.3px;
     }
-    .badge {
-      display: inline-block;
-      padding: 2px 6px;
-      border-radius: 4px;
+
+    .live-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: #34d399;
+      background: var(--green-bg);
+      padding: 4px 9px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.8); }
+    }
+
+    .connect-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .connect-btn {
+      appearance: none;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      color: var(--text);
+      padding: 10px 6px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      transition: transform 0.1s ease, border-color 0.2s ease;
+    }
+
+    .connect-btn:active {
+      transform: scale(0.97);
+    }
+
+    .connect-btn .sub {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .connect-btn.active {
+      border-color: var(--green);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .empty-state {
+      background: var(--card);
+      border: 1px dashed var(--card-border);
+      border-radius: 16px;
+      padding: 28px 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    .dot.off {
+      background: var(--red);
+      box-shadow: none;
+    }
+
+    .dev-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .icon-btn {
+      border: 1px solid var(--card-border);
+      background: var(--surface);
+      color: var(--muted);
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    /* SOC Bar */
+    .soc-row {
+      margin-bottom: 14px;
+    }
+
+    .soc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .soc-val {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .soc-cap {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: var(--surface);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #059669, #10b981);
+      transition: width 0.35s ease;
+    }
+
+    .progress-fill.warn {
+      background: linear-gradient(90deg, #d97706, #f59e0b);
+    }
+
+    .progress-fill.low {
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+    }
+
+    /* Hero Metrics */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .metric-box {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .metric-num {
+      font-size: 17px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-num .unit {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    /* Status Pills */
+    .pills-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 9px;
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pill.ok {
+      background: var(--green-bg);
+      color: #34d399;
+    }
+
+    .pill.warn {
+      background: var(--amber-bg);
+      color: #fbbf24;
+    }
+
+    .pill.bad {
+      background: var(--red-bg);
+      color: #f87171;
+    }
+
+    .pill.active-bal {
+      background: var(--blue-bg);
+      color: #60a5fa;
+    }
+
+    /* Cells Section */
+    .cells-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
       font-size: 12px;
       font-weight: 600;
+      color: var(--muted);
     }
-    .badge.ok { background: #d1e7dd; color: #0f5132; }
-    .badge.off { background: #f8d7da; color: #842029; }
-    .badge.warn { background: #fff3cd; color: #664d03; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 8px;
-    }
-    th, td {
-      text-align: left;
-      padding: 4px 6px;
-      border-bottom: 1px solid #eee;
-      font-size: 13px;
-    }
-    th { color: #555; font-weight: 600; width: 48%; }
-    td { font-family: monospace; font-size: 13px; }
-    .section-title {
+
+    .delta-badge {
+      padding: 3px 8px;
+      border-radius: 6px;
       font-weight: 700;
-      margin: 8px 0 4px 0;
-      font-size: 13px;
-      color: #333;
-      background: #eee;
-      padding: 3px 6px;
-      border-radius: 3px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
     }
+
+    .delta-badge.good { background: var(--green-bg); color: #34d399; }
+    .delta-badge.mid  { background: var(--amber-bg); color: #fbbf24; }
+    .delta-badge.high { background: var(--red-bg); color: #f87171; }
+
     .cells-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 4px;
-      margin-bottom: 8px;
+      gap: 8px;
+      margin-bottom: 12px;
     }
-    .cell-box {
-      border: 1px solid #ddd;
-      padding: 4px 6px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 12px;
+
+    .cell-item {
+      background: var(--surface);
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .cell-item.is-min { border-color: rgba(59, 130, 246, 0.45); }
+    .cell-item.is-max { border-color: rgba(245, 158, 11, 0.45); }
+    .cell-item.is-bal { border-color: var(--green); background: rgba(16, 185, 129, 0.08); }
+
+    .cell-top {
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
     }
-    .cell-box.min { border-color: #0d6efd; background: #f0f7ff; }
-    .cell-box.max { border-color: #fd7e14; background: #fff8f0; }
-    .cell-box.bal { border-color: #198754; background: #eafaf1; font-weight: bold; }
-    #log {
-      font-family: monospace;
+
+    .cell-idx {
       font-size: 11px;
-      background: #1e1e1e;
-      color: #d4d4d4;
-      padding: 8px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .cell-tag {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
       border-radius: 4px;
-      max-height: 200px;
-      overflow-y: auto;
-      white-space: pre-wrap;
+      text-transform: uppercase;
+    }
+
+    .cell-tag.min { background: var(--blue-bg); color: #60a5fa; }
+    .cell-tag.max { background: var(--amber-bg); color: #fbbf24; }
+    .cell-tag.bal { background: var(--green-bg); color: #34d399; }
+
+    .cell-volt {
+      font-size: 15px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 5px;
+    }
+
+    .cell-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .cell-bar-fill {
+      height: 100%;
+      background: #64748b;
+      border-radius: 99px;
+    }
+
+    .cell-item.is-min .cell-bar-fill { background: #3b82f6; }
+    .cell-item.is-max .cell-bar-fill { background: #f59e0b; }
+    .cell-item.is-bal .cell-bar-fill { background: #10b981; }
+
+    /* Footer */
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .card-footer b {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .err-banner {
+      background: var(--red-bg);
+      color: #fca5a5;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
 
-  <div id="bt-warning" class="warn">
-    Увага: ваш браузер не підтримує Web Bluetooth. На Android відкрийте сторінку у <b>Google Chrome</b>. На iPhone/iPad використовуйте застосунок <b>Bluefy</b> (Web BLE Browser).
-  </div>
-
-  <div class="top-bar">
-    <h1>Моніторинг Акумуляторів (BLE)</h1>
-    <div>Натисніть кнопку, щоб підключити акумулятор через Bluetooth (можна підключити всі 3 одночасно):</div>
-    <div class="btn-row">
-      <button onclick="connectBattery('sandisolar')">+ Sandisolar (HL12100)</button>
-      <button onclick="connectBattery('humsienk')">+ Humsienk (HS0302AC)</button>
-      <button onclick="connectBattery('sjy')">+ SJY (DP04S007)</button>
-      <button class="secondary" onclick="connectBattery('any')">+ Будь-який з 3-х</button>
-      <button class="secondary" onclick="connectBattery('all')">Показати всі BLE</button>
+<div class="container">
+  <div class="header">
+    <h1>🔋 Мої Акумулятори</h1>
+    <div class="live-badge">
+      <span class="pulse-dot"></span>
+      <span id="live-status">Авто (2с)</span>
     </div>
   </div>
 
-  <div id="cards" class="cards"></div>
+  <div class="connect-bar">
+    <button class="connect-btn" onclick="connectBattery('sandisolar')">
+      <span>Sandisolar</span>
+      <span class="sub">HL12100</span>
+    </button>
+    <button class="connect-btn" onclick="connectBattery('humsienk')">
+      <span>Humsienk</span>
+      <span class="sub">HS0302</span>
+    </button>
+    <button class="connect-btn" onclick="connectBattery('sjy')">
+      <span>SJY</span>
+      <span class="sub">DP04</span>
+    </button>
+    <button class="connect-btn" onclick="connectBattery('all')">
+      <span>Всі BLE</span>
+      <span class="sub">Пошук</span>
+    </button>
+  </div>
 
-  <details style="margin-top:12px;">
-    <summary style="cursor:pointer; font-weight:600;">Технічний лог (Raw BLE пакети)</summary>
-    <div id="log">Лог готовий...</div>
-  </details>
+  <div id="cards" class="cards"></div>
+</div>
 
 <script>
-const UUID_SVC_HL = '0000fffa-0000-1000-8000-00805f9b34fb';
-const UUID_TX_HL  = '0000fffb-0000-1000-8000-00805f9b34fb';
-const UUID_RX_HL  = '0000fffc-0000-1000-8000-00805f9b34fb';
+const UUID_SVC_HL  = '0000fffa-0000-1000-8000-00805f9b34fb';
+const UUID_TX_HL   = '0000fffb-0000-1000-8000-00805f9b34fb';
+const UUID_RX_HL   = '0000fffc-0000-1000-8000-00805f9b34fb';
 
-const UUID_SVC_HS = '00000001-0000-1000-8000-00805f9b34fb';
-const UUID_TX_HS  = '00000002-0000-1000-8000-00805f9b34fb';
-const UUID_RX_HS  = '00000003-0000-1000-8000-00805f9b34fb';
+const UUID_SVC_HS  = '00000001-0000-1000-8000-00805f9b34fb';
+const UUID_TX_HS   = '00000002-0000-1000-8000-00805f9b34fb';
+const UUID_RX_HS   = '00000003-0000-1000-8000-00805f9b34fb';
 
 const UUID_SVC_JBD = '0000ff00-0000-1000-8000-00805f9b34fb';
 const UUID_RX_JBD  = '0000ff01-0000-1000-8000-00805f9b34fb';
@@ -191,21 +487,7 @@ const OPTIONAL_SERVICES = [
   '11110001-1111-1111-1111-111111111111'
 ];
 
-if (!navigator.bluetooth) {
-  document.getElementById('bt-warning').style.display = 'block';
-}
-
-const sessions = {}; // device.id -> session object
-
-function log(msg) {
-  const el = document.getElementById('log');
-  const time = new Date().toLocaleTimeString();
-  el.textContent = `[${time}] ${msg}\n` + el.textContent.slice(0, 8000);
-}
-
-function bytesToHex(bytes) {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+const sessions = {};
 
 function hexToBytes(hex) {
   const arr = new Uint8Array(hex.length / 2);
@@ -262,20 +544,6 @@ async function connectBattery(mode) {
         filters: [{ namePrefix: 'DP04' }, { namePrefix: 'JBD' }, { namePrefix: 'SJY' }, { services: [UUID_SVC_JBD] }],
         optionalServices: OPTIONAL_SERVICES
       };
-    } else if (mode === 'any') {
-      options = {
-        filters: [
-          { namePrefix: 'HL' },
-          { namePrefix: 'SH' },
-          { namePrefix: 'HS' },
-          { namePrefix: 'DP04' },
-          { namePrefix: 'JBD' },
-          { services: [UUID_SVC_HL] },
-          { services: [UUID_SVC_HS] },
-          { services: [UUID_SVC_JBD] }
-        ],
-        optionalServices: OPTIONAL_SERVICES
-      };
     } else {
       options = {
         acceptAllDevices: true,
@@ -283,13 +551,19 @@ async function connectBattery(mode) {
       };
     }
 
-    log(`Запит пристрою (${mode})...`);
     const device = await navigator.bluetooth.requestDevice(options);
-    log(`Обрано пристрій: ${device.name || '(без назви)'} [${device.id}]`);
     await setupDeviceSession(device);
   } catch (err) {
-    log(`Помилка вибору/підключення: ${err.message || err}`);
+    // Ignore user cancel
   }
+}
+
+function detectBrandByName(name) {
+  const up = (name || '').toUpperCase();
+  if (up.startsWith('HL') || up.startsWith('SH')) return 'Sandisolar';
+  if (up.startsWith('HS')) return 'Humsienk';
+  if (up.startsWith('DP04') || up.startsWith('JBD') || up.startsWith('SJY')) return 'SJY';
+  return 'Акумулятор';
 }
 
 async function setupDeviceSession(device) {
@@ -300,7 +574,7 @@ async function setupDeviceSession(device) {
   const session = {
     id: device.id,
     device: device,
-    name: device.name || 'Невідомий АКБ',
+    name: device.name || 'BLE BMS',
     brand: detectBrandByName(device.name || ''),
     type: null,
     server: null,
@@ -312,7 +586,6 @@ async function setupDeviceSession(device) {
     data: {},
     rxBuf: new Uint8Array(0),
     hsFrames: {},
-    jbdWaitCmd: 0,
     polling: false,
     timer: null
   };
@@ -322,36 +595,34 @@ async function setupDeviceSession(device) {
 
   device.addEventListener('gattserverdisconnected', () => {
     session.connected = false;
-    session.error = 'З\'єднання розірвано';
-    log(`${session.name}: роз'єднано`);
+    session.polling = false;
     renderCards();
+    // Автоматичне перепідключення при обриві зв'язку
+    if (!session.manualClose) {
+      setTimeout(() => {
+        if (sessions[session.id] && !session.connected && !session.reconnecting) {
+          connectAndInit(session);
+        }
+      }, 1500);
+    }
   });
 
   await connectAndInit(session);
 }
 
-function detectBrandByName(name) {
-  const up = name.toUpperCase();
-  if (up.startsWith('HL') || up.startsWith('SH')) return 'Sandisolar';
-  if (up.startsWith('HS')) return 'Humsienk';
-  if (up.startsWith('DP04') || up.startsWith('JBD') || up.startsWith('SJY')) return 'SJY (JBD BMS)';
-  return 'Smart BMS';
-}
-
 async function connectAndInit(session) {
+  if (session.reconnecting) return;
+  session.reconnecting = true;
   try {
-    session.error = 'Підключення до GATT...';
+    session.error = null;
+    session.polling = false;
     renderCards();
 
     session.server = await session.device.gatt.connect();
     session.connected = true;
-    session.error = null;
-    log(`${session.name}: GATT підключено, пошук сервісів...`);
 
     const services = await session.server.getPrimaryServices();
     const svcUuids = services.map(s => s.uuid.toLowerCase());
-    log(`${session.name}: знайдені сервіси: ${svcUuids.join(', ')}`);
-
     const up = (session.name || '').toUpperCase();
 
     if (svcUuids.some(u => u.includes('fffa')) || up.startsWith('HL')) {
@@ -368,12 +639,12 @@ async function connectAndInit(session) {
       session.rxChar = await svc.getCharacteristic(UUID_RX_HS);
     } else if (svcUuids.some(u => u.includes('ff00')) || up.startsWith('DP04')) {
       session.type = 'jbd';
-      session.brand = 'SJY (JBD BMS)';
+      session.brand = 'SJY';
       const svc = await session.server.getPrimaryService(UUID_SVC_JBD);
       session.txChar = await svc.getCharacteristic(UUID_TX_JBD);
       session.rxChar = await svc.getCharacteristic(UUID_RX_JBD);
     } else {
-      throw new Error('Не знайдено відомий сервіс BMS (fffa / 0001 / ff00)');
+      throw new Error('Невідомий тип BMS');
     }
 
     await session.rxChar.startNotifications();
@@ -383,21 +654,25 @@ async function connectAndInit(session) {
     });
 
     if (session.type === 'humsienk') {
-      // Humsienk init command 0x00: AA 00 00 00 00
-      log(`${session.name}: ініціалізація Humsienk (0x00)...`);
       await writeChar(session.txChar, hexToBytes('aa00000000'));
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 250));
     }
 
     await pollSession(session);
+    if (session.timer) clearInterval(session.timer);
     session.timer = setInterval(() => {
-      if (session.connected) pollSession(session);
-    }, 3500);
+      if (session.connected) {
+        pollSession(session);
+      } else if (!session.manualClose && !session.reconnecting) {
+        connectAndInit(session);
+      }
+    }, 2200);
 
   } catch (err) {
     session.error = err.message || String(err);
-    log(`${session.name} помилка: ${session.error}`);
     renderCards();
+  } finally {
+    session.reconnecting = false;
   }
 }
 
@@ -409,8 +684,6 @@ function concatBytes(a, b) {
 }
 
 function onRxData(session, chunk) {
-  log(`${session.name} RX (${chunk.length}B): ${bytesToHex(chunk)}`);
-
   if (session.type === 'saihang') {
     if (chunk.length >= 2 && chunk[0] === 0xa5 && chunk[1] === 0xa5) {
       session.rxBuf = chunk;
@@ -426,8 +699,7 @@ function onRxData(session, chunk) {
     }
   } else if (session.type === 'humsienk') {
     if (chunk.length >= 5 && chunk[0] === 0xaa) {
-      const cmdType = chunk[1];
-      session.hsFrames[cmdType] = chunk;
+      session.hsFrames[chunk[1]] = chunk;
       parseHumsienk(session);
     }
   } else if (session.type === 'jbd') {
@@ -446,7 +718,6 @@ function onRxData(session, chunk) {
   }
 }
 
-// 1. Parser for Sandisolar (HL12100 - Saihang BMS)
 function parseSaihang(session, m) {
   const current = readInt(m, 5, 4, false, true) / 100.0;
   const voltage = readInt(m, 9, 4, false, false) / 100.0;
@@ -455,8 +726,7 @@ function parseSaihang(session, m) {
   const remCap = readInt(m, 17, 4, false, false) / 100.0;
   const nomCap = readInt(m, 25, 4, false, false) / 100.0;
   const cycles = readInt(m, 29, 2, false, false);
-  const rawProb = readInt(m, 31, 2, false, false);
-  const problemCode = (~rawProb) & 0xFFFF;
+  const problemCode = (~readInt(m, 31, 2, false, false)) & 0xFFFF;
   const mosBits = readInt(m, 37, 2, false, false);
   const chgMos = Boolean(mosBits & 0x0200);
   const dsgMos = Boolean(mosBits & 0x0400);
@@ -477,33 +747,24 @@ function parseSaihang(session, m) {
     const pos = 87 + i * 2;
     if (pos + 2 <= m.length) {
       const rawT = readInt(m, pos, 2, false, true);
-      if (rawT !== 0) temps.push({ label: `Комірка T${i+1}`, val: ((rawT - 2730) / 10.0).toFixed(1) });
+      if (rawT !== 0) temps.push(((rawT - 2730) / 10.0).toFixed(1));
     }
-  }
-  if (m.length >= 111) {
-    const tMos = readInt(m, 107, 2, false, true);
-    const tAmb = readInt(m, 109, 2, false, true);
-    if (tMos !== 0) temps.push({ label: 'MOSFET', val: ((tMos - 2730) / 10.0).toFixed(1) });
-    if (tAmb !== 0) temps.push({ label: 'Середовище', val: ((tAmb - 2730) / 10.0).toFixed(1) });
   }
 
   session.data = {
     voltage, current, power: voltage * current,
     soc, soh, remCap, nomCap, cycles,
-    chgMos, dsgMos, heater: null,
-    balMask, cells, temps, problemCode
+    chgMos, dsgMos, balMask, cells, temps, problemCode
   };
   session.lastUpdate = new Date();
   session.error = null;
   renderCards();
 }
 
-// 2. Parser for Humsienk (HS0302AC)
 function parseHumsienk(session) {
   const m20 = session.hsFrames[0x20];
   const m21 = session.hsFrames[0x21];
   const m22 = session.hsFrames[0x22];
-
   const d = Object.assign({}, session.data);
 
   if (m21 && m21.length >= 25) {
@@ -516,12 +777,11 @@ function parseHumsienk(session) {
     d.nomCap = readInt(m21, 17, 4, true, false) / 1000.0;
     d.cycles = readInt(m21, 21, 2, true, false);
 
-    const labels = ['Комірка T1', 'Комірка T2', 'Комірка T3', 'Комірка T4', 'MOSFET', 'Середовище'];
     const temps = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       if (23 + i < m21.length - 2) {
         const tv = readInt(m21, 23 + i, 1, true, true);
-        if (tv !== 0) temps.push({ label: labels[i], val: tv.toFixed(1) });
+        if (tv !== 0) temps.push(tv.toFixed(0));
       }
     }
     d.temps = temps;
@@ -529,7 +789,6 @@ function parseHumsienk(session) {
 
   if (m20 && m20.length >= 16) {
     d.chgMos = Boolean(m20[7] & 0x80);
-    d.heater = Boolean(m20[8] & 0x80);
     d.dsgMos = Boolean(m20[9] & 0x80);
     d.balMask = readInt(m20, 11, 3, true, false);
     d.problemCode = (readInt(m20, 7, 4, true, false) & 0xFF7F7F7F) >>> 0;
@@ -553,7 +812,6 @@ function parseHumsienk(session) {
   renderCards();
 }
 
-// 3. Parser for SJY (DP04S007 - JBD Smart BMS)
 function parseJbdFrame(session, f) {
   const cmd = f[1];
   const d = Object.assign({}, session.data);
@@ -579,14 +837,13 @@ function parseJbdFrame(session, f) {
     d.soc = f[23];
     d.chgMos = Boolean(f[24] & 0x01);
     d.dsgMos = Boolean(f[24] & 0x02);
-    d.cellCount = f[25];
 
     const temps = [];
     for (let i = 0; i < tempCount; i++) {
       const pos = 27 + i * 2;
       if (pos + 2 <= f.length - 3) {
         const rawK = readInt(f, pos, 2, false, false);
-        temps.push({ label: `Датчик T${i+1}`, val: ((rawK - 2731) / 10.0).toFixed(1) });
+        temps.push(((rawK - 2731) / 10.0).toFixed(1));
       }
     }
     d.temps = temps;
@@ -607,24 +864,25 @@ function parseJbdFrame(session, f) {
 }
 
 async function pollSession(session) {
-  if (!session.connected || session.polling) return;
+  if (!session.connected) return;
+  const now = Date.now();
+  if (session.polling && session.pollStart && (now - session.pollStart < 4000)) return;
   session.polling = true;
+  session.pollStart = now;
   try {
     if (session.type === 'saihang') {
-      // A5 A5 00 03 00 00 00 36 C4 0D (count=0x36 works on HL12100)
       await writeChar(session.txChar, hexToBytes('a5a5000300000036c40d'));
     } else if (session.type === 'humsienk') {
       for (const hex of ['aa20002000', 'aa21002100', 'aa22002200']) {
         await writeChar(session.txChar, hexToBytes(hex));
-        await new Promise(r => setTimeout(r, 220));
+        await new Promise(r => setTimeout(r, 180));
       }
     } else if (session.type === 'jbd') {
       await writeChar(session.txChar, hexToBytes('dda50300fffd77'));
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 240));
       await writeChar(session.txChar, hexToBytes('dda50400fffc77'));
     }
   } catch (err) {
-    log(`${session.name} помилка опитування: ${err.message || err}`);
   } finally {
     session.polling = false;
   }
@@ -632,20 +890,34 @@ async function pollSession(session) {
 
 async function manualReconnect(id) {
   const s = sessions[id];
-  if (!s) return;
-  await connectAndInit(s);
+  if (s) {
+    s.manualClose = false;
+    await connectAndInit(s);
+  }
 }
 
 function disconnectDevice(id) {
   const s = sessions[id];
   if (!s) return;
+  s.manualClose = true;
   if (s.timer) clearInterval(s.timer);
   try {
-    if (s.device.gatt.connected) s.device.gatt.disconnect();
+    if (s.device && s.device.gatt && s.device.gatt.connected) {
+      s.device.gatt.disconnect();
+    }
   } catch (e) {}
   delete sessions[id];
   renderCards();
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    Object.values(sessions).forEach(s => {
+      if (s.connected) pollSession(s);
+      else if (!s.manualClose) connectAndInit(s);
+    });
+  }
+});
 
 function fmt(v, digits = 2) {
   return (v !== undefined && v !== null && !isNaN(v)) ? Number(v).toFixed(digits) : '—';
@@ -654,106 +926,142 @@ function fmt(v, digits = 2) {
 function renderCards() {
   const container = document.getElementById('cards');
   const list = Object.values(sessions);
+
   if (list.length === 0) {
-    container.innerHTML = `<div class="card">Ще немає підключених акумуляторів. Натисніть кнопку вгорі, щоб обрати акумулятор через Bluetooth.</div>`;
+    container.innerHTML = `
+      <div class="empty-state">
+        Оберіть акумулятор зверху, щоб підключитися по Bluetooth
+      </div>
+    `;
     return;
   }
 
   container.innerHTML = list.map(s => {
     const d = s.data || {};
     const cells = d.cells || [];
-    let minV = null, maxV = null, avgV = null, deltaV = null, minIdx = -1, maxIdx = -1;
+    let minV = null, maxV = null, deltaMv = null, minIdx = -1, maxIdx = -1;
+
     if (cells.length > 0) {
       minV = Math.min(...cells);
       maxV = Math.max(...cells);
-      avgV = cells.reduce((a, b) => a + b, 0) / cells.length;
-      deltaV = maxV - minV;
+      deltaMv = Math.round((maxV - minV) * 1000);
       minIdx = cells.indexOf(minV);
       maxIdx = cells.indexOf(maxV);
     }
 
+    const soc = d.soc !== undefined ? d.soc : 0;
+    const socClass = soc < 20 ? 'low' : (soc < 50 ? 'warn' : '');
+
     const cur = d.current || 0;
-    const stateLabel = cur > 0.05 ? '⚡ Заряджається' : (cur < -0.05 ? '🔋 Розряджається' : '💤 Спокій (0 А)');
+    const flowText = cur > 0.05 ? '⚡ Заряд' : (cur < -0.05 ? '🔋 Розряд' : 'Спокій');
+
     const balActive = Boolean(d.balMask && d.balMask > 0);
-    const updatedStr = s.lastUpdate ? s.lastUpdate.toLocaleTimeString() : 'очікування...';
+    const deltaClass = deltaMv === null ? 'good' : (deltaMv <= 20 ? 'good' : (deltaMv <= 60 ? 'mid' : 'high'));
+
+    const updatedStr = s.lastUpdate instanceof Date
+      ? s.lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : (s.lastUpdate || 'підключення...');
 
     const cellsHtml = cells.map((cv, idx) => {
       const isBal = Boolean(d.balMask && (d.balMask & (1 << idx)));
-      const cls = isBal ? 'bal' : (idx === minIdx ? 'min' : (idx === maxIdx ? 'max' : ''));
-      const tag = isBal ? '⚖️ BAL' : (idx === minIdx ? 'MIN' : (idx === maxIdx ? 'MAX' : ''));
-      return `<div class="cell-box ${cls}">
-        <span>#${idx + 1}: <b>${cv.toFixed(3)} V</b></span>
-        <span>${tag}</span>
-      </div>`;
+      const isMin = !isBal && idx === minIdx && deltaMv > 2;
+      const isMax = !isBal && idx === maxIdx && deltaMv > 2;
+      const itemCls = isBal ? 'is-bal' : (isMin ? 'is-min' : (isMax ? 'is-max' : ''));
+      const tagHtml = isBal
+        ? `<span class="cell-tag bal">⚖️ BAL</span>`
+        : (isMin ? `<span class="cell-tag min">MIN</span>` : (isMax ? `<span class="cell-tag max">MAX</span>` : ''));
+
+      // Scale bar between 3.00V and 3.65V
+      const pct = Math.max(5, Math.min(100, ((cv - 3.0) / 0.65) * 100));
+
+      return `
+        <div class="cell-item ${itemCls}">
+          <div class="cell-top">
+            <span class="cell-idx">Комірка #${idx + 1}</span>
+            ${tagHtml}
+          </div>
+          <div class="cell-volt">${cv.toFixed(3)} V</div>
+          <div class="cell-bar">
+            <div class="cell-bar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+      `;
     }).join('');
 
-    const tempsHtml = (d.temps && d.temps.length > 0)
-      ? d.temps.map(t => `${t.label}: <b>${t.val} °C</b>`).join(' &nbsp;|&nbsp; ')
-      : '—';
+    const tempStr = (d.temps && d.temps.length > 0) ? `${d.temps[0]}°C` : '—';
 
     return `
       <div class="card">
-        <div class="card-header">
+        <div class="card-top">
           <div>
-            <div class="card-title">${s.brand} — ${s.name}</div>
-            <div style="font-size:11px; color:#666;">Оновлено: ${updatedStr}</div>
+            <div class="brand-title">
+              <span class="dot ${s.connected ? '' : 'off'}"></span>
+              <span>${s.brand}</span>
+            </div>
+            <div class="dev-sub">${s.name} • ${updatedStr}</div>
           </div>
-          <div>
-            <span class="badge ${s.connected ? 'ok' : 'off'}">${s.connected ? 'Підключено' : 'Відключено'}</span>
+          <div class="card-actions">
+            ${!s.connected
+              ? `<button class="icon-btn" onclick="manualReconnect('${s.id}')" title="Перепідключити">↻</button>`
+              : `<button class="icon-btn" onclick="pollSession(sessions['${s.id}'])" title="Оновити">↻</button>`
+            }
+            <button class="icon-btn" onclick="disconnectDevice('${s.id}')" title="Закрити">✕</button>
           </div>
         </div>
 
-        ${s.error ? `<div style="color:#b91c1c; font-size:12px; margin-bottom:6px;">Статус: ${s.error}</div>` : ''}
+        ${s.error ? `<div class="err-banner">${s.error}</div>` : ''}
 
-        <div class="section-title">Основні показники</div>
-        <table>
-          <tr><th>Заряд (SOC) / Здоров'я (SOH)</th><td><b>${d.soc !== undefined ? d.soc + '%' : '—'}</b> ${d.soh !== undefined ? '/ ' + d.soh + '%' : ''}</td></tr>
-          <tr><th>Напруга загальна</th><td><b>${fmt(d.voltage, 2)} V</b></td></tr>
-          <tr><th>Сила струму</th><td><b>${fmt(d.current, 2)} A</b> (${stateLabel})</td></tr>
-          <tr><th>Потужність</th><td><b>${fmt(d.power, 1)} W</b></td></tr>
-          <tr><th>Ємність (Залишок / Номінал)</th><td>${fmt(d.remCap, 2)} Ah / ${fmt(d.nomCap, 1)} Ah</td></tr>
-          <tr><th>Цикли</th><td>${d.cycles !== undefined ? d.cycles : '—'}</td></tr>
-        </table>
-
-        <div class="section-title">Балансування та ключі (MOSFET)</div>
-        <table>
-          <tr>
-            <th>Балансування</th>
-            <td>
-              <span class="badge ${balActive ? 'ok' : 'warn'}">${balActive ? 'АКТИВНЕ (⚖️)' : 'Не активне'}</span>
-              ${d.balMask !== undefined ? ` (маска: 0b${d.balMask.toString(2).padStart(cells.length || 4, '0')})` : ''}
-            </td>
-          </tr>
-          <tr>
-            <th>Ключ заряду / розряду</th>
-            <td>
-              Заряд: <b>${d.chgMos === undefined ? '—' : (d.chgMos ? 'ON' : 'OFF')}</b> |
-              Розряд: <b>${d.dsgMos === undefined ? '—' : (d.dsgMos ? 'ON' : 'OFF')}</b>
-              ${d.heater !== null && d.heater !== undefined ? ` | Нагрів: <b>${d.heater ? 'ON' : 'OFF'}</b>` : ''}
-            </td>
-          </tr>
-          <tr>
-            <th>Помилки / Захист BMS</th>
-            <td>${d.problemCode ? `<span class="badge off">Код: 0x${d.problemCode.toString(16).toUpperCase()}</span>` : '<span class="badge ok">Норма (0x00)</span>'}</td>
-          </tr>
-        </table>
-
-        <div class="section-title">Комірки (${cells.length} шт.)</div>
-        <table>
-          <tr><th>Min / Max / Avg</th><td>${fmt(minV, 3)} V / ${fmt(maxV, 3)} V / ${fmt(avgV, 3)} V</td></tr>
-          <tr><th>Розкид (Delta ΔV)</th><td><b>${deltaV !== null ? (deltaV * 1000).toFixed(0) + ' mV (' + deltaV.toFixed(3) + ' V)' : '—'}</b></td></tr>
-        </table>
-        <div class="cells-grid">
-          ${cellsHtml || '<div style="grid-column:1/-1; color:#666;">Немає даних про комірки</div>'}
+        <div class="soc-row">
+          <div class="soc-header">
+            <div class="soc-val">${d.soc !== undefined ? d.soc + '%' : '—'}</div>
+            <div class="soc-cap">${fmt(d.remCap, 1)} / ${fmt(d.nomCap, 0)} Ah • ${flowText}</div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill ${socClass}" style="width:${Math.min(100, Math.max(0, soc))}%"></div>
+          </div>
         </div>
 
-        <div class="section-title">Температура</div>
-        <div style="padding:4px 6px; font-family:monospace; font-size:13px;">${tempsHtml}</div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Напруга</div>
+            <div class="metric-num">${fmt(d.voltage, 2)} <span class="unit">V</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Струм</div>
+            <div class="metric-num">${fmt(d.current, 2)} <span class="unit">A</span></div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Потужність</div>
+            <div class="metric-num">${fmt(d.power, 0)} <span class="unit">W</span></div>
+          </div>
+        </div>
 
-        <div class="btn-row" style="margin-top:10px;">
-          <button class="secondary" onclick="pollSession(sessions['${s.id}'])">Оновити зараз</button>
-          ${!s.connected ? `<button onclick="manualReconnect('${s.id}')">Перепідключити</button>` : ''}
-          <button class="danger" onclick="disconnectDevice('${s.id}')">Закрити</button>
+        <div class="pills-row">
+          <span class="pill ${balActive ? 'active-bal' : ''}">
+            ⚖️ Балансир: ${balActive ? 'АКТИВНИЙ' : 'Вимк'}
+          </span>
+          <span class="pill ${d.chgMos ? 'ok' : 'warn'}">
+            ⚡ Заряд: ${d.chgMos === undefined ? '—' : (d.chgMos ? 'ON' : 'OFF')}
+          </span>
+          <span class="pill ${d.dsgMos ? 'ok' : 'bad'}">
+            🔋 Розряд: ${d.dsgMos === undefined ? '—' : (d.dsgMos ? 'ON' : 'OFF')}
+          </span>
+        </div>
+
+        ${cells.length > 0 ? `
+          <div class="cells-header">
+            <span>Комірки (${cells.length}S)</span>
+            <span class="delta-badge ${deltaClass}">Розкид Δ ${deltaMv} mV</span>
+          </div>
+          <div class="cells-grid">
+            ${cellsHtml}
+          </div>
+        ` : ''}
+
+        <div class="card-footer">
+          <span>Цикли: <b>${d.cycles !== undefined ? d.cycles : '—'}</b></span>
+          <span>Температура: <b>${tempStr}</b></span>
+          ${d.soh ? `<span>SOH: <b>${d.soh}%</b></span>` : ''}
         </div>
       </div>
     `;
