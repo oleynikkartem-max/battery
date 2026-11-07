@@ -2,24 +2,26 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>BMS Монітор</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BMS Studio</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-border: #334155;
-      --surface: #0f172a;
+      --bg: #060913;
+      --card: rgba(18, 25, 43, 0.78);
+      --card-inner: rgba(10, 15, 29, 0.65);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(255, 255, 255, 0.15);
       --text: #f8fafc;
-      --muted: #94a3b8;
-      --green: #10b981;
-      --green-bg: rgba(16, 185, 129, 0.14);
+      --muted: #8b9bb4;
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.22);
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.22);
       --amber: #f59e0b;
-      --amber-bg: rgba(245, 158, 11, 0.15);
-      --red: #ef4444;
-      --red-bg: rgba(239, 68, 68, 0.15);
+      --amber-glow: rgba(245, 158, 11, 0.22);
+      --rose: #f43f5e;
+      --rose-glow: rgba(244, 63, 94, 0.22);
       --blue: #3b82f6;
-      --blue-bg: rgba(59, 130, 246, 0.15);
     }
 
     * {
@@ -28,50 +30,88 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
       margin: 0;
-      padding: 14px 12px 32px;
-      background: var(--bg);
+      padding: 16px 14px 44px;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(circle at 15% 0%, rgba(16, 185, 129, 0.14), transparent 45%),
+        radial-gradient(circle at 85% 5%, rgba(59, 130, 246, 0.14), transparent 45%);
+      background-attachment: fixed;
       color: var(--text);
-      line-height: 1.35;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
     }
 
     .container {
-      max-width: 520px;
+      max-width: 480px;
       margin: 0 auto;
     }
 
+    /* Top Header */
     .header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+      padding: 2px 2px;
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .app-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(6, 182, 212, 0.15));
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.18);
     }
 
     .header h1 {
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 21px;
+      font-weight: 800;
       margin: 0;
-      letter-spacing: -0.3px;
+      letter-spacing: -0.4px;
+      background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-sub {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
     }
 
     .live-badge {
       font-size: 11px;
       font-weight: 600;
       color: #34d399;
-      background: var(--green-bg);
-      padding: 4px 9px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 6px 11px;
       border-radius: 999px;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      backdrop-filter: blur(10px);
     }
 
     .pulse-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--green);
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
       animation: pulse 1.8s infinite;
     }
 
@@ -80,101 +120,172 @@
       50% { opacity: 0.35; transform: scale(0.8); }
     }
 
+    /* Quick Connect Dock */
     .connect-bar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
     }
 
     .connect-btn {
       appearance: none;
-      border: 1px solid var(--card-border);
+      border: 1px solid var(--border);
       background: var(--card);
+      backdrop-filter: blur(16px);
       color: var(--text);
-      padding: 10px 6px;
-      border-radius: 12px;
+      padding: 11px 6px;
+      border-radius: 16px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 3px;
-      transition: transform 0.1s ease, border-color 0.2s ease;
+      gap: 4px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.14s ease, border-color 0.2s ease, background 0.2s ease;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    }
+
+    .connect-btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+      pointer-events: none;
     }
 
     .connect-btn:active {
-      transform: scale(0.97);
+      transform: scale(0.95);
+    }
+
+    .connect-btn.connected {
+      border-color: rgba(16, 185, 129, 0.45);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.16) 0%, rgba(18, 25, 43, 0.85) 100%);
     }
 
     .connect-btn .sub {
       font-size: 10px;
       color: var(--muted);
       font-weight: 500;
+      letter-spacing: 0.2px;
     }
 
-    .connect-btn.active {
-      border-color: var(--green);
-      background: rgba(16, 185, 129, 0.08);
+    /* Summary Banner when multiple batteries connected */
+    .summary-bar {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(59, 130, 246, 0.12));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(16px);
     }
 
+    .summary-item {
+      text-align: center;
+    }
+
+    .summary-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 2px;
+    }
+
+    .summary-val {
+      font-size: 15px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Cards Container */
     .cards {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 16px;
     }
 
     .empty-state {
       background: var(--card);
-      border: 1px dashed var(--card-border);
-      border-radius: 16px;
-      padding: 28px 18px;
+      border: 1px dashed rgba(255, 255, 255, 0.14);
+      border-radius: 22px;
+      padding: 38px 20px;
       text-align: center;
       color: var(--muted);
       font-size: 14px;
+      backdrop-filter: blur(16px);
     }
 
+    .empty-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      opacity: 0.85;
+    }
+
+    /* Battery Card */
     .card {
       background: var(--card);
-      border: 1px solid var(--card-border);
-      border-radius: 18px;
-      padding: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border: 1px solid var(--border-highlight);
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
     }
 
     .card-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
 
     .brand-title {
-      font-size: 18px;
-      font-weight: 700;
+      font-size: 19px;
+      font-weight: 800;
       display: flex;
       align-items: center;
       gap: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .short-id {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 7px;
+      border-radius: 6px;
     }
 
     .dot {
       width: 9px;
       height: 9px;
       border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
     }
 
     .dot.off {
-      background: var(--red);
-      box-shadow: none;
+      background: var(--rose);
+      box-shadow: 0 0 8px var(--rose);
     }
 
     .dev-sub {
       font-size: 11px;
       color: var(--muted);
-      margin-top: 2px;
+      margin-top: 3px;
+      padding-left: 17px;
     }
 
     .card-actions {
@@ -183,66 +294,134 @@
     }
 
     .icon-btn {
-      border: 1px solid var(--card-border);
-      background: var(--surface);
+      border: 1px solid var(--border);
+      background: var(--card-inner);
       color: var(--muted);
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
       font-size: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      transition: transform 0.1s ease, color 0.15s ease;
     }
 
-    /* SOC Bar */
-    .soc-row {
-      margin-bottom: 14px;
+    .icon-btn:active {
+      transform: scale(0.92);
+      color: var(--text);
+    }
+
+    /* Hero SOC + Energy Block */
+    .soc-panel {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 12px;
     }
 
     .soc-header {
       display: flex;
       justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+
+    .soc-left {
+      display: flex;
       align-items: baseline;
-      margin-bottom: 6px;
+      gap: 8px;
     }
 
     .soc-val {
-      font-size: 28px;
+      font-size: 34px;
       font-weight: 800;
-      letter-spacing: -0.5px;
+      letter-spacing: -1px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .flow-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+    }
+
+    .flow-pill.charging {
+      background: var(--emerald-glow);
+      color: #34d399;
+    }
+
+    .flow-pill.discharging {
+      background: var(--amber-glow);
+      color: #fbbf24;
+    }
+
+    .soc-right {
+      text-align: right;
     }
 
     .soc-cap {
       font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .soc-eta {
+      font-size: 11px;
       color: var(--muted);
-      font-weight: 500;
+      margin-top: 2px;
     }
 
     .progress-track {
-      height: 10px;
-      background: var(--surface);
+      height: 12px;
+      background: rgba(255, 255, 255, 0.06);
       border-radius: 999px;
       overflow: hidden;
+      position: relative;
+      padding: 2px;
     }
 
     .progress-fill {
       height: 100%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #059669, #10b981);
-      transition: width 0.35s ease;
+      background: linear-gradient(90deg, #059669 0%, #10b981 55%, #34d399 100%);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+      transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-fill.charging::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+      animation: shimmer 1.8s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
 
     .progress-fill.warn {
       background: linear-gradient(90deg, #d97706, #f59e0b);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
     }
 
     .progress-fill.low {
-      background: linear-gradient(90deg, #dc2626, #ef4444);
+      background: linear-gradient(90deg, #e11d48, #f43f5e);
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.4);
     }
 
-    /* Hero Metrics */
+    /* Hero Metrics Grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -251,116 +430,156 @@
     }
 
     .metric-box {
-      background: var(--surface);
-      border-radius: 12px;
-      padding: 10px;
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 11px 8px;
       text-align: center;
     }
 
     .metric-label {
       font-size: 11px;
       color: var(--muted);
-      margin-bottom: 3px;
+      font-weight: 500;
+      margin-bottom: 4px;
     }
 
     .metric-num {
-      font-size: 17px;
-      font-weight: 700;
+      font-size: 18px;
+      font-weight: 800;
       font-variant-numeric: tabular-nums;
+      letter-spacing: -0.3px;
     }
 
     .metric-num .unit {
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       color: var(--muted);
     }
 
-    /* Status Pills */
-    .pills-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    /* Status Switches Row */
+    .switches-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
       margin-bottom: 14px;
     }
 
-    .pill {
+    .switch-pill {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 7px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       font-size: 11px;
       font-weight: 600;
-      padding: 5px 9px;
-      border-radius: 8px;
-      background: var(--surface);
       color: var(--muted);
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
     }
 
-    .pill.ok {
-      background: var(--green-bg);
+    .switch-pill .state {
+      font-weight: 800;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+    }
+
+    .switch-pill.on .state {
+      background: var(--emerald-glow);
       color: #34d399;
     }
 
-    .pill.warn {
-      background: var(--amber-bg);
-      color: #fbbf24;
+    .switch-pill.off .state {
+      background: var(--rose-glow);
+      color: #fb7185;
     }
 
-    .pill.bad {
-      background: var(--red-bg);
-      color: #f87171;
+    .switch-pill.bal-on {
+      border-color: rgba(6, 182, 212, 0.45);
+      background: rgba(6, 182, 212, 0.1);
+      color: #e2e8f0;
     }
 
-    .pill.active-bal {
-      background: var(--blue-bg);
-      color: #60a5fa;
+    .switch-pill.bal-on .state {
+      background: var(--cyan-glow);
+      color: #22d3ee;
     }
 
     /* Cells Section */
+    .cells-panel {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
     .cells-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+    }
+
+    .cells-title {
       font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
+      font-weight: 700;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .delta-badge {
-      padding: 3px 8px;
-      border-radius: 6px;
+      padding: 3px 9px;
+      border-radius: 999px;
       font-weight: 700;
       font-size: 11px;
       font-variant-numeric: tabular-nums;
     }
 
-    .delta-badge.good { background: var(--green-bg); color: #34d399; }
-    .delta-badge.mid  { background: var(--amber-bg); color: #fbbf24; }
-    .delta-badge.high { background: var(--red-bg); color: #f87171; }
+    .delta-badge.good { background: var(--emerald-glow); color: #34d399; }
+    .delta-badge.mid  { background: var(--amber-glow); color: #fbbf24; }
+    .delta-badge.high { background: var(--rose-glow); color: #fb7185; }
 
     .cells-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 8px;
-      margin-bottom: 12px;
     }
 
     .cell-item {
-      background: var(--surface);
-      border: 1px solid transparent;
-      border-radius: 10px;
-      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 13px;
+      padding: 9px 11px;
+      transition: border-color 0.2s ease;
     }
 
-    .cell-item.is-min { border-color: rgba(59, 130, 246, 0.45); }
-    .cell-item.is-max { border-color: rgba(245, 158, 11, 0.45); }
-    .cell-item.is-bal { border-color: var(--green); background: rgba(16, 185, 129, 0.08); }
+    .cell-item.is-min {
+      border-color: rgba(59, 130, 246, 0.45);
+      background: rgba(59, 130, 246, 0.06);
+    }
+
+    .cell-item.is-max {
+      border-color: rgba(245, 158, 11, 0.45);
+      background: rgba(245, 158, 11, 0.06);
+    }
+
+    .cell-item.is-bal {
+      border-color: rgba(6, 182, 212, 0.65);
+      background: rgba(6, 182, 212, 0.12);
+      box-shadow: 0 0 14px rgba(6, 182, 212, 0.15);
+    }
 
     .cell-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 5px;
+      margin-bottom: 4px;
     }
 
     .cell-idx {
@@ -371,25 +590,26 @@
 
     .cell-tag {
       font-size: 9px;
-      font-weight: 700;
-      padding: 1px 5px;
-      border-radius: 4px;
-      text-transform: uppercase;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 5px;
+      letter-spacing: 0.3px;
     }
 
-    .cell-tag.min { background: var(--blue-bg); color: #60a5fa; }
-    .cell-tag.max { background: var(--amber-bg); color: #fbbf24; }
-    .cell-tag.bal { background: var(--green-bg); color: #34d399; }
+    .cell-tag.min { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .cell-tag.max { background: var(--amber-glow); color: #fbbf24; }
+    .cell-tag.bal { background: var(--cyan-glow); color: #22d3ee; }
 
     .cell-volt {
-      font-size: 15px;
-      font-weight: 700;
+      font-size: 16px;
+      font-weight: 800;
       font-variant-numeric: tabular-nums;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
+      letter-spacing: -0.2px;
     }
 
     .cell-bar {
-      height: 4px;
+      height: 5px;
       background: rgba(255, 255, 255, 0.07);
       border-radius: 99px;
       overflow: hidden;
@@ -399,36 +619,43 @@
       height: 100%;
       background: #64748b;
       border-radius: 99px;
+      transition: width 0.3s ease;
     }
 
     .cell-item.is-min .cell-bar-fill { background: #3b82f6; }
     .cell-item.is-max .cell-bar-fill { background: #f59e0b; }
-    .cell-item.is-bal .cell-bar-fill { background: #10b981; }
+    .cell-item.is-bal .cell-bar-fill { background: #06b6d4; }
 
     /* Footer */
     .card-footer {
       display: flex;
       justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      align-items: center;
+      padding: 4px 4px 0;
       font-size: 12px;
       color: var(--muted);
     }
 
-    .card-footer b {
-      color: var(--text);
-      font-weight: 600;
+    .footer-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .footer-chip b {
+      color: #e2e8f0;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
     }
 
     .err-banner {
-      background: var(--red-bg);
-      color: #fca5a5;
-      padding: 8px 10px;
-      border-radius: 8px;
+      background: var(--rose-glow);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      color: #fda4af;
+      padding: 8px 12px;
+      border-radius: 12px;
       font-size: 12px;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
   </style>
 </head>
@@ -436,23 +663,29 @@
 
 <div class="container">
   <div class="header">
-    <h1>🔋 Мої Акумулятори</h1>
+    <div class="title-wrap">
+      <div class="app-icon">⚡</div>
+      <div>
+        <h1>BMS Studio</h1>
+        <div class="header-sub">LiFePO4 Bluetooth Телеметрія</div>
+      </div>
+    </div>
     <div class="live-badge">
       <span class="pulse-dot"></span>
-      <span id="live-status">Авто (2с)</span>
+      <span>LIVE 2с</span>
     </div>
   </div>
 
   <div class="connect-bar">
-    <button class="connect-btn" onclick="connectBattery('sandisolar')">
+    <button id="btn-sandisolar" class="connect-btn" onclick="connectBattery('sandisolar')">
       <span>Sandisolar</span>
       <span class="sub">HL12100</span>
     </button>
-    <button class="connect-btn" onclick="connectBattery('humsienk')">
+    <button id="btn-humsienk" class="connect-btn" onclick="connectBattery('humsienk')">
       <span>Humsienk</span>
       <span class="sub">HS0302</span>
     </button>
-    <button class="connect-btn" onclick="connectBattery('sjy')">
+    <button id="btn-sjy" class="connect-btn" onclick="connectBattery('sjy')">
       <span>SJY</span>
       <span class="sub">DP04</span>
     </button>
@@ -460,6 +693,21 @@
       <span>Всі BLE</span>
       <span class="sub">Пошук</span>
     </button>
+  </div>
+
+  <div id="summary-bar" class="summary-bar">
+    <div class="summary-item">
+      <div class="summary-label">Напруга збірки</div>
+      <div id="sum-volt" class="summary-val">—</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Загальна потужність</div>
+      <div id="sum-power" class="summary-val">—</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">Підключено</div>
+      <div id="sum-count" class="summary-val">0 АКБ</div>
+    </div>
   </div>
 
   <div id="cards" class="cards"></div>
@@ -560,9 +808,7 @@ async function connectBattery(mode) {
 
     const device = await navigator.bluetooth.requestDevice(options);
     await setupDeviceSession(device);
-  } catch (err) {
-    // Ignore user cancel
-  }
+  } catch (err) {}
 }
 
 function detectBrandByName(name) {
@@ -604,7 +850,6 @@ async function setupDeviceSession(device) {
     session.connected = false;
     session.polling = false;
     renderCards();
-    // Автоматичне перепідключення при обриві зв'язку
     if (!session.manualClose) {
       setTimeout(() => {
         if (sessions[session.id] && !session.connected && !session.reconnecting) {
@@ -930,14 +1175,60 @@ function fmt(v, digits = 2) {
   return (v !== undefined && v !== null && !isNaN(v)) ? Number(v).toFixed(digits) : '—';
 }
 
+function formatEta(d) {
+  const cur = d.current || 0;
+  const rem = d.remCap;
+  const nom = d.nomCap;
+  if (!rem || Math.abs(cur) < 0.15) return 'Режим очікування';
+  let hrs = 0;
+  let prefix = '';
+  if (cur < -0.15) {
+    hrs = rem / Math.abs(cur);
+    prefix = 'Вистачить на ~';
+  } else if (cur > 0.15 && nom) {
+    hrs = Math.max(0.05, (nom - rem) / cur);
+    prefix = 'Повний через ~';
+  } else {
+    return '';
+  }
+  if (hrs > 48) return prefix + '> 48 год';
+  const h = Math.floor(hrs);
+  const m = Math.round((hrs - h) * 60);
+  return `${prefix}${h > 0 ? h + ' год ' : ''}${m} хв`;
+}
+
+function updateTopHighlights(list) {
+  const brands = new Set(list.filter(s => s.connected).map(s => s.brand.toLowerCase()));
+  const map = { sandisolar: 'btn-sandisolar', humsienk: 'btn-humsienk', sjy: 'btn-sjy' };
+  for (const [key, btnId] of Object.entries(map)) {
+    const el = document.getElementById(btnId);
+    if (el) el.classList.toggle('connected', brands.has(key));
+  }
+
+  const sumBar = document.getElementById('summary-bar');
+  if (list.length >= 2) {
+    sumBar.style.display = 'flex';
+    const totalV = list.reduce((acc, s) => acc + (s.data.voltage || 0), 0);
+    const totalP = list.reduce((acc, s) => acc + (s.data.power || 0), 0);
+    document.getElementById('sum-volt').textContent = totalV.toFixed(2) + ' V';
+    document.getElementById('sum-power').textContent = Math.round(totalP) + ' W';
+    document.getElementById('sum-count').textContent = list.length + ' АКБ';
+  } else {
+    sumBar.style.display = 'none';
+  }
+}
+
 function renderCards() {
   const container = document.getElementById('cards');
   const list = Object.values(sessions);
+  updateTopHighlights(list);
 
   if (list.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        Оберіть акумулятор зверху, щоб підключитися по Bluetooth
+        <div class="empty-icon">🔋</div>
+        <div style="font-weight:700; color:#e2e8f0; margin-bottom:4px;">Немає активних підключень</div>
+        <div>Натисніть на кнопку акумулятора зверху, щоб підключитися по Bluetooth</div>
       </div>
     `;
     return;
@@ -957,10 +1248,17 @@ function renderCards() {
     }
 
     const soc = d.soc !== undefined ? d.soc : 0;
-    const socClass = soc < 20 ? 'low' : (soc < 50 ? 'warn' : '');
-
     const cur = d.current || 0;
-    const flowText = cur > 0.05 ? '⚡ Заряд' : (cur < -0.05 ? '🔋 Розряд' : 'Спокій');
+    const isCharging = cur > 0.05;
+    const isDischarging = cur < -0.05;
+
+    const socClass = [
+      soc < 20 ? 'low' : (soc < 45 ? 'warn' : ''),
+      isCharging ? 'charging' : ''
+    ].filter(Boolean).join(' ');
+
+    const flowCls = isCharging ? 'charging' : (isDischarging ? 'discharging' : '');
+    const flowText = isCharging ? '⚡ Заряджається' : (isDischarging ? '🔋 Розряд' : 'Спокій');
 
     const balActive = Boolean(d.balMask && d.balMask > 0);
     const deltaClass = deltaMv === null ? 'good' : (deltaMv <= 20 ? 'good' : (deltaMv <= 60 ? 'mid' : 'high'));
@@ -968,6 +1266,10 @@ function renderCards() {
     const updatedStr = s.lastUpdate instanceof Date
       ? s.lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       : (s.lastUpdate || 'підключення...');
+
+    const shortId = (s.name && s.name.length >= 4)
+      ? '#' + s.name.replace(/[^A-Za-z0-9]/g, '').slice(-4)
+      : '';
 
     const cellsHtml = cells.map((cv, idx) => {
       const isBal = Boolean(d.balMask && (d.balMask & (1 << idx)));
@@ -978,8 +1280,7 @@ function renderCards() {
         ? `<span class="cell-tag bal">⚖️ BAL</span>`
         : (isMin ? `<span class="cell-tag min">MIN</span>` : (isMax ? `<span class="cell-tag max">MAX</span>` : ''));
 
-      // Scale bar between 3.00V and 3.65V
-      const pct = Math.max(5, Math.min(100, ((cv - 3.0) / 0.65) * 100));
+      const pct = Math.max(6, Math.min(100, ((cv - 3.0) / 0.65) * 100));
 
       return `
         <div class="cell-item ${itemCls}">
@@ -996,7 +1297,7 @@ function renderCards() {
     }).join('');
 
     const tempStr = (d.temps && d.temps.length > 0) ? `${d.temps[0]}°C` : '—';
-    const shortId = (s.name && s.name.length >= 4) ? '#' + s.name.replace(/[^A-Za-z0-9]/g, '').slice(-4) : '';
+    const etaStr = formatEta(d);
 
     return `
       <div class="card">
@@ -1004,9 +1305,10 @@ function renderCards() {
           <div>
             <div class="brand-title">
               <span class="dot ${s.connected ? '' : 'off'}"></span>
-              <span>${s.brand} <span style="color:var(--muted); font-weight:500; font-size:14px;">${shortId}</span></span>
+              <span>${s.brand}</span>
+              ${shortId ? `<span class="short-id">${shortId}</span>` : ''}
             </div>
-            <div class="dev-sub">${s.name} • ${updatedStr}</div>
+            <div class="dev-sub">${s.name} • оновлено о ${updatedStr}</div>
           </div>
           <div class="card-actions">
             ${!s.connected
@@ -1019,10 +1321,16 @@ function renderCards() {
 
         ${s.error ? `<div class="err-banner">${s.error}</div>` : ''}
 
-        <div class="soc-row">
+        <div class="soc-panel">
           <div class="soc-header">
-            <div class="soc-val">${d.soc !== undefined ? d.soc + '%' : '—'}</div>
-            <div class="soc-cap">${fmt(d.remCap, 1)} / ${fmt(d.nomCap, 0)} Ah • ${flowText}</div>
+            <div class="soc-left">
+              <div class="soc-val">${d.soc !== undefined ? d.soc + '%' : '—'}</div>
+              <span class="flow-pill ${flowCls}">${flowText}</span>
+            </div>
+            <div class="soc-right">
+              <div class="soc-cap">${fmt(d.remCap, 1)} / ${fmt(d.nomCap, 0)} Ah</div>
+              <div class="soc-eta">${etaStr}</div>
+            </div>
           </div>
           <div class="progress-track">
             <div class="progress-fill ${socClass}" style="width:${Math.min(100, Math.max(0, soc))}%"></div>
@@ -1044,32 +1352,37 @@ function renderCards() {
           </div>
         </div>
 
-        <div class="pills-row">
-          <span class="pill ${balActive ? 'active-bal' : ''}">
-            ⚖️ Балансир: ${balActive ? 'АКТИВНИЙ' : 'Вимк'}
-          </span>
-          <span class="pill ${d.chgMos ? 'ok' : 'warn'}">
-            ⚡ Заряд: ${d.chgMos === undefined ? '—' : (d.chgMos ? 'ON' : 'OFF')}
-          </span>
-          <span class="pill ${d.dsgMos ? 'ok' : 'bad'}">
-            🔋 Розряд: ${d.dsgMos === undefined ? '—' : (d.dsgMos ? 'ON' : 'OFF')}
-          </span>
+        <div class="switches-grid">
+          <div class="switch-pill ${balActive ? 'bal-on' : ''}">
+            <span>⚖️ Баланс</span>
+            <span class="state">${balActive ? 'ON' : 'OFF'}</span>
+          </div>
+          <div class="switch-pill ${d.chgMos ? 'on' : 'off'}">
+            <span>⚡ Заряд</span>
+            <span class="state">${d.chgMos === undefined ? '—' : (d.chgMos ? 'ON' : 'OFF')}</span>
+          </div>
+          <div class="switch-pill ${d.dsgMos ? 'on' : 'off'}">
+            <span>🔋 Розряд</span>
+            <span class="state">${d.dsgMos === undefined ? '—' : (d.dsgMos ? 'ON' : 'OFF')}</span>
+          </div>
         </div>
 
         ${cells.length > 0 ? `
-          <div class="cells-header">
-            <span>Комірки (${cells.length}S)</span>
-            <span class="delta-badge ${deltaClass}">Розкид Δ ${deltaMv} mV</span>
-          </div>
-          <div class="cells-grid">
-            ${cellsHtml}
+          <div class="cells-panel">
+            <div class="cells-header">
+              <span class="cells-title">Комірки (${cells.length}S) • ${minV.toFixed(3)}–${maxV.toFixed(3)}V</span>
+              <span class="delta-badge ${deltaClass}">Δ ${deltaMv} mV</span>
+            </div>
+            <div class="cells-grid">
+              ${cellsHtml}
+            </div>
           </div>
         ` : ''}
 
         <div class="card-footer">
-          <span>Цикли: <b>${d.cycles !== undefined ? d.cycles : '—'}</b></span>
-          <span>Температура: <b>${tempStr}</b></span>
-          ${d.soh ? `<span>SOH: <b>${d.soh}%</b></span>` : ''}
+          <span class="footer-chip">🔄 Цикли: <b>${d.cycles !== undefined ? d.cycles : '—'}</b></span>
+          <span class="footer-chip">🌡 Темп: <b>${tempStr}</b></span>
+          ${d.soh ? `<span class="footer-chip">💚 SOH: <b>${d.soh}%</b></span>` : ''}
         </div>
       </div>
     `;
