@@ -536,7 +536,14 @@ async function connectBattery(mode) {
       };
     } else if (mode === 'humsienk') {
       options = {
-        filters: [{ namePrefix: 'HS' }, { services: [UUID_SVC_HS] }],
+        filters: [
+          { namePrefix: 'HS' },
+          { namePrefix: 'HUM' },
+          { namePrefix: 'ECO' },
+          { namePrefix: 'DCH' },
+          { services: [UUID_SVC_HS] },
+          { services: [UUID_SVC_JBD] }
+        ],
         optionalServices: OPTIONAL_SERVICES
       };
     } else if (mode === 'sjy') {
@@ -989,6 +996,7 @@ function renderCards() {
     }).join('');
 
     const tempStr = (d.temps && d.temps.length > 0) ? `${d.temps[0]}°C` : '—';
+    const shortId = (s.name && s.name.length >= 4) ? '#' + s.name.replace(/[^A-Za-z0-9]/g, '').slice(-4) : '';
 
     return `
       <div class="card">
@@ -996,7 +1004,7 @@ function renderCards() {
           <div>
             <div class="brand-title">
               <span class="dot ${s.connected ? '' : 'off'}"></span>
-              <span>${s.brand}</span>
+              <span>${s.brand} <span style="color:var(--muted); font-weight:500; font-size:14px;">${shortId}</span></span>
             </div>
             <div class="dev-sub">${s.name} • ${updatedStr}</div>
           </div>
