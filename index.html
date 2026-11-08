@@ -1325,7 +1325,13 @@ function renderBleLog() {
     `${devLabel(s)}: ${s.connected ? '🟢' : (s.reconnecting ? '⏳' : '🔴')} ${s.device ? 'handle' : 'НЕМАЄ handle'}${s.failCount ? ' • невдач ' + s.failCount : ''}`
   );
   const api = !navigator.bluetooth ? 'navigator.bluetooth відсутній'
-    : (typeof navigator.bluetooth.getDevices === 'function' ? 'getDevices ✓' : 'getDevices ✗ (браузер не підтримує)');
+    : [
+        typeof navigator.bluetooth.getDevices === 'function' ? 'getDevices ✓' : 'getDevices ✗',
+        typeof navigator.bluetooth.requestLEScan === 'function' ? 'LEScan ✓' : 'LEScan ✗',
+        (Object.values(sessions).find(x => x.device) || {}).device
+          ? (typeof Object.values(sessions).find(x => x.device).device.watchAdvertisements === 'function' ? 'watchAdv ✓' : 'watchAdv ✗')
+          : 'watchAdv ?'
+      ].join(' • ');
   return `
     <details class="inv-more" style="margin-top:16px" ${bleLogOpen ? 'open' : ''} ontoggle="bleLogOpen=this.open">
       <summary>🔧 Діагностика Bluetooth ▾</summary>
@@ -1343,6 +1349,58 @@ function copyBleLog() {
   const txt = bleLogLines.slice().reverse().join('\n');
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => alert('Скопійовано'), () => prompt('Скопіюйте:', txt));
   else prompt('Скопіюйте:', txt);
+}
+
+function errText(e) {
+  if (!e) return '?';
+  return [e.name, e.code !== undefined ? 'code ' + e.code : '', e.message].filter(Boolean).join(' / ');
+}
+
+// A device handle from getDevices() is often "stale" on iOS until the phone has seen the
+// battery advertise in this app session (Bluefy fails connect() instantly with "2").
+// The picker works because it scans first; do the same via watchAdvertisements / requestLEScan.
+async function wakeDevice(dev, ms = 8000) {
+  if (typeof dev.watchAdvertisements === 'function') {
+    return new Promise(async (resolve) => {
+      let done = false;
+      let ctrl = null;
+      try { ctrl = new AbortController(); } catch (e) {}
+      const finish = (ok, why) => {
+        if (done) return;
+        done = true;
+        dev.removeEventListener('advertisementreceived', onAdv);
+        try { if (ctrl) ctrl.abort(); else if (dev.unwatchAdvertisements) dev.unwatchAdvertisements(); } catch (e) {}
+        bleLog(`${devLabel(dev)}: ${why}`);
+        resolve(ok);
+      };
+      const onAdv = (ev) => finish(true, `📡 побачив у ефірі${ev && ev.rssi ? ' (RSSI ' + ev.rssi + ')' : ''}`);
+      dev.addEventListener('advertisementreceived', onAdv);
+      setTimeout(() => finish(false, `📡 не видно в ефірі ${ms / 1000} с`), ms);
+      try {
+        await dev.watchAdvertisements(ctrl ? { signal: ctrl.signal } : undefined);
+      } catch (e) {
+        finish(false, 'watchAdvertisements: ' + errText(e));
+      }
+    });
+  }
+  if (navigator.bluetooth && typeof navigator.bluetooth.requestLEScan === 'function') {
+    let scan = null;
+    try {
+      scan = await navigator.bluetooth.requestLEScan({ acceptAllAdvertisements: true, keepRepeatedDevices: false });
+      const ok = await new Promise((resolve) => {
+        const on = (ev) => { if (ev.device && ev.device.id === dev.id) { navigator.bluetooth.removeEventListener('advertisementreceived', on); resolve(true); } };
+        navigator.bluetooth.addEventListener('advertisementreceived', on);
+        setTimeout(() => { navigator.bluetooth.removeEventListener('advertisementreceived', on); resolve(false); }, ms);
+      });
+      bleLog(`${devLabel(dev)}: LE scan → ${ok ? 'знайдено' : 'не знайдено'}`);
+      return ok;
+    } catch (e) {
+      bleLog('requestLEScan: ' + errText(e));
+    } finally {
+      try { if (scan && scan.active) scan.stop(); } catch (e) {}
+    }
+  }
+  return false;
 }
 
 function isAnyDeviceInitializing() {
@@ -1434,10 +1492,6 @@ async function tryAutoConnectRemembered(fromUserTap = false) {
     for (const dev of todo) {
       if (fromUserTap) { forgottenIds.delete(dev.id); saveForgotten(); }
       if (sessions[dev.id]) sessions[dev.id].manualClose = false;
-      // Chrome needs an advertisement before connecting to a remembered device
-      if (typeof dev.watchAdvertisements === 'function' && !dev.watchingAdvertisements) {
-        try { await withTimeout(dev.watchAdvertisements(), 1500, 'watchAdv'); } catch (e) {}
-      }
       await setupDeviceSession(dev);
       await sleep(600);
     }
@@ -1691,11 +1745,14 @@ async function connectAndInit(session) {
   renderCards();
 
   try {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         session.error = null;
         session.polling = false;
 
+        if (attempt > 1 || session.failCount) {
+          await wakeDevice(session.device, attempt === 3 ? 10000 : 6000);
+        }
         bleLog(`${devLabel(session)}: connect, спроба ${attempt}`);
         session.server = await withTimeout(session.device.gatt.connect(), 12000, 'connect');
         session.initializing = true;
@@ -1727,12 +1784,12 @@ async function connectAndInit(session) {
         await pollSession(session, true);
         return true;
       } catch (innerErr) {
-        bleLog(`${devLabel(session)}: ❌ ${innerErr && innerErr.message || innerErr}`);
+        bleLog(`${devLabel(session)}: ❌ ${errText(innerErr)}`);
         session.connected = false;
         session.initializing = false;
         try { if (session.device.gatt.connected) session.device.gatt.disconnect(); } catch (e) {}
-        if (attempt < 2) {
-          await sleep(700);
+        if (attempt < 3) {
+          await sleep(1200);
         }
       }
     }
