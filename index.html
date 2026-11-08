@@ -1309,6 +1309,19 @@ function isAnyDeviceConnecting() {
   return autoConnecting || Object.values(sessions).some(s => s.reconnecting);
 }
 
+function isAnyDeviceInitializing() {
+  return Object.values(sessions).some(s => s.initializing);
+}
+
+// Exponential backoff for batteries that keep failing (out of range / not advertising)
+function canRetry(s) {
+  return !s.nextRetryAt || Date.now() >= s.nextRetryAt;
+}
+function noteFailure(s) {
+  s.failCount = (s.failCount || 0) + 1;
+  s.nextRetryAt = Date.now() + Math.min(60000, 5000 * Math.pow(2, s.failCount - 1));
+}
+
 function saveStateToStorage() {
   try {
     const payload = {};
@@ -1642,6 +1655,7 @@ async function connectAndInit(session) {
         session.polling = false;
 
         session.server = await withTimeout(session.device.gatt.connect(), 12000, 'connect');
+        session.initializing = true;
         await sleep(250);
         await withTimeout(resolveServiceAndChars(session), 8000, 'services');
 
@@ -1663,18 +1677,24 @@ async function connectAndInit(session) {
           await sleep(280);
         }
 
+        session.initializing = false;
+        session.failCount = 0;
+        session.nextRetryAt = 0;
         await pollSession(session, true);
         return true;
       } catch (innerErr) {
         session.connected = false;
+        session.initializing = false;
         try { if (session.device.gatt.connected) session.device.gatt.disconnect(); } catch (e) {}
         if (attempt < 2) {
           await sleep(700);
         }
       }
     }
+    noteFailure(session);
     return false;
   } finally {
+    session.initializing = false;
     session.reconnecting = false;
     renderCards();
   }
@@ -1872,7 +1892,7 @@ function parseJbdFrame(session, f) {
 
 async function pollSession(session, force = false) {
   if (!session || !session.connected) return;
-  if (!force && isAnyDeviceConnecting()) return;
+  if (!force && isAnyDeviceInitializing()) return;
   const now = Date.now();
   if (session.polling && session.pollStart && (now - session.pollStart < 3500)) return;
   session.polling = true;
@@ -1900,12 +1920,12 @@ async function pollSession(session, force = false) {
 
 // Single sequential polling scheduler so multiple BLE batteries never collide on iOS Bluefy
 setInterval(async () => {
-  if (centralPollingBusy || isAnyDeviceConnecting()) return;
+  if (centralPollingBusy || isAnyDeviceInitializing()) return;
   centralPollingBusy = true;
   try {
     const activeList = Object.values(sessions).filter(s => s.connected);
     for (const s of activeList) {
-      if (isAnyDeviceConnecting()) break;
+      if (isAnyDeviceInitializing()) break;
       await pollSession(s);
       await sleep(220);
     }
@@ -1957,7 +1977,7 @@ document.addEventListener('visibilitychange', () => {
 // keep asking Bluefy/Chrome for the remembered devices instead of trying only once on load.
 setInterval(() => {
   if (isAnyDeviceConnecting()) return;
-  const missing = Object.values(sessions).some(s => !s.device && !s.manualClose);
+  const missing = Object.values(sessions).some(s => !s.device && !s.manualClose && canRetry(s));
   const none = Object.keys(sessions).length === 0;
   if (missing || none) tryAutoConnectRemembered(false);
 }, 8000);
@@ -1965,7 +1985,7 @@ setInterval(() => {
 // Background auto-reconnect every 5 seconds for remembered devices that have a live handle
 setInterval(() => {
   if (isAnyDeviceConnecting()) return;
-  const disconnectedWithDevice = Object.values(sessions).filter(s => !s.connected && !s.manualClose && s.device);
+  const disconnectedWithDevice = Object.values(sessions).filter(s => !s.connected && !s.manualClose && s.device && canRetry(s));
   if (disconnectedWithDevice.length > 0) {
     (async () => {
       for (const s of disconnectedWithDevice) {
