@@ -178,7 +178,7 @@
     /* Quick Connect Dock */
     .connect-bar {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
       margin-bottom: 14px;
     }
@@ -1136,6 +1136,52 @@
       align-items: center;
       cursor: pointer;
     }
+
+    /* ===== Inverter (SmartESS cloud) ===== */
+    .connect-btn { min-width: 0; }
+    .connect-btn > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 420px) { .connect-btn { font-size: 11px; padding: 9px 3px; } }
+    .flow-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; }
+    .flow-tile { background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:10px 6px; text-align:center; min-width:0; transition:all .3s; }
+    .flow-tile .ft-ico { font-size:18px; line-height:1; }
+    .flow-tile .ft-lbl { font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+    .flow-tile .ft-val { font-size:16px; font-weight:800; color:var(--text); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .flow-tile .ft-sub { font-size:10px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .flow-tile.on-sun  { border-color:rgba(245,158,11,.45); box-shadow:0 0 18px var(--amber-glow); }
+    .flow-tile.on-grid { border-color:rgba(59,130,246,.45); box-shadow:0 0 18px var(--blue-glow); }
+    .flow-tile.on-load { border-color:rgba(6,182,212,.45); box-shadow:0 0 18px var(--cyan-glow); }
+    .flow-tile.on-chg  { border-color:rgba(16,185,129,.45); box-shadow:0 0 18px var(--emerald-glow); }
+    .flow-tile.on-dis  { border-color:rgba(244,63,94,.45); box-shadow:0 0 18px var(--rose-glow); }
+    .inv-cloud-row { display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin-top:4px; }
+    .inv-cloud-row b { color:var(--text); }
+    .inv-chip { background:var(--card-inner); border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-weight:700; cursor:pointer; }
+    .inv-chip.warn { color:var(--amber); border-color:rgba(245,158,11,.4); }
+    .inv-chip.bad { color:var(--rose); border-color:rgba(244,63,94,.4); }
+    .inv-chip.ok { color:var(--emerald); border-color:rgba(16,185,129,.4); }
+    .inv-setup { margin:12px 0 4px; padding:12px; border:1px dashed var(--border-highlight); border-radius:14px; text-align:center; font-size:12px; color:var(--muted); cursor:pointer; }
+    .inv-setup b { color:#60a5fa; }
+    .inv-settings { margin-top:10px; background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:8px 12px; font-size:12px; }
+    .inv-settings .row { display:flex; justify-content:space-between; gap:8px; padding:4px 0; border-bottom:1px solid var(--border); }
+    .inv-settings .row:last-of-type { border-bottom:0; }
+    .inv-settings .row span:first-child { color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .inv-settings .row b { text-align:right; }
+    .inv-hint { margin-top:8px; padding:8px 10px; border-radius:10px; font-size:12px; line-height:1.45; }
+    .inv-hint.warn { background:rgba(245,158,11,.1); color:#fcd34d; border:1px solid rgba(245,158,11,.3); }
+    .inv-hint.ok { background:rgba(16,185,129,.1); color:#6ee7b7; border:1px solid rgba(16,185,129,.3); }
+    .inv-raw summary { cursor:pointer; color:var(--muted); font-size:11px; font-weight:700; margin-top:10px; }
+    .modal-back { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
+    .modal-back.show { display:flex; }
+    .modal { width:100%; max-width:380px; background:#0d1424; border:1px solid var(--border-highlight); border-radius:18px; padding:18px; color:var(--text); }
+    .modal h3 { margin:0 0 6px; font-size:16px; }
+    .modal p { margin:0 0 10px; font-size:12px; color:var(--muted); line-height:1.45; }
+    .modal label { display:block; font-size:11px; color:var(--muted); font-weight:700; margin:8px 0 4px; }
+    .modal input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border-highlight); background:var(--card-inner); color:var(--text); font-size:16px; }
+    .modal details { margin-top:10px; font-size:12px; color:var(--muted); }
+    .modal .btns { display:flex; gap:8px; margin-top:14px; }
+    .modal button { flex:1; padding:11px; border-radius:12px; border:1px solid var(--border-highlight); background:var(--card-inner); color:var(--text); font-weight:800; font-size:14px; }
+    .modal button.primary { background:var(--blue); border-color:var(--blue); }
+    .modal .err { color:#fda4af; font-size:12px; margin-top:8px; min-height:16px; }
+    @media (max-width:420px) { .flow-grid { grid-template-columns:repeat(2,1fr); } }
   </style>
 </head>
 <body>
@@ -1147,7 +1193,7 @@
       <div class="app-icon">⚡</div>
       <div>
         <h1>BMS Studio</h1>
-        <div class="header-sub">Домашня система 24V • 2S2P (200Ah)</div>
+        <div class="header-sub">Інвертор Sandisolar 24V • АКБ 2S2P (200Ah)</div>
       </div>
     </div>
     <div class="live-badge" onclick="tryAutoConnectRemembered(true)" title="Оновити / підключити збережені АКБ">
@@ -1169,6 +1215,10 @@
     <button id="btn-humsienk" class="connect-btn" onclick="connectBattery('humsienk')">
       <span>Humsienk</span>
       <span class="sub">Гілка Б • 1/2</span>
+    </button>
+    <button id="btn-inverter" class="connect-btn" onclick="invButton()">
+      <span>Інвертор</span>
+      <span class="sub" id="btn-inverter-sub">SmartESS</span>
     </button>
     <button class="connect-btn" onclick="connectBattery('all')">
       <span>+ Додати</span>
@@ -1195,6 +1245,26 @@
   <!-- TAB 2: DETAILED CARDS (CELLS, MOSFETS, CYCLES) -->
   <div id="tab-details" class="tab-pane">
     <div id="cards" class="cards"></div>
+  </div>
+</div>
+
+<div id="inv-modal" class="modal-back" onclick="if(event.target===this)invCloseModal()">
+  <div class="modal">
+    <h3>🔌 Інвертор через SmartESS</h3>
+    <p>Логін і пароль від застосунку SmartESS. Браузер ходить напряму в хмару SmartESS (Dessmonitor), без проміжних серверів. Пароль не зберігається: лишаються тільки його SHA-1 хеш і токен, і лише на цьому пристрої. Сайт тільки читає дані й нічого не змінює в інверторі.</p>
+    <label>Логін SmartESS</label>
+    <input id="inv-usr" autocomplete="username" autocapitalize="off" autocorrect="off">
+    <label>Пароль</label>
+    <input id="inv-pwd" type="password" autocomplete="current-password">
+    <details>
+      <summary>Додатково: кілька пристроїв в акаунті</summary>
+      <label>PN логера або назва пристрою</label><input id="inv-pn" placeholder="I20000251235621334">
+    </details>
+    <div class="err" id="inv-err"></div>
+    <div class="btns">
+      <button onclick="invLogout()">Вийти</button>
+      <button class="primary" id="inv-login-btn" onclick="invLoginFromForm()">Підключити</button>
+    </div>
   </div>
 </div>
 
@@ -2063,9 +2133,23 @@ function renderTopology(list) {
     busVoltSuffix = ' (1/2)';
   }
 
-  const anyActive = Boolean(vSandi || vSjy || stringBComplete);
-  const totalCurrent = stringACurrent + (stringBComplete ? stringBCurrent : 0);
-  const totalPower = stringAPower + (stringBComplete ? stringBPower : 0);
+  const bmsBusV = busVoltNum;
+  let anyActive = Boolean(vSandi || vSjy || stringBComplete);
+  let totalCurrent = stringACurrent + (stringBComplete ? stringBCurrent : 0);
+  let totalPower = stringAPower + (stringBComplete ? stringBPower : 0);
+  let currentSrc = 'Гілка А + Б';
+
+  // No BMS on BLE right now: fall back to what the inverter sees on the 24V bus
+  if (!anyActive && inv.data && inv.data.batV) {
+    busVoltNum = inv.data.batV;
+    busVoltSuffix = ' інв.';
+    if (inv.data.batA !== null) {
+      anyActive = true;
+      totalCurrent = inv.data.batA;
+      totalPower = inv.data.batV * inv.data.batA;
+      currentSrc = 'за інвертором';
+    }
+  }
 
   let flowClass = '';
   let flowText = 'Режим очікування';
@@ -2153,6 +2237,8 @@ function renderTopology(list) {
         <div class="inv-power-pill ${flowClass}">${flowText}</div>
       </div>
 
+      ${renderInverterBlock(bmsBusV)}
+
       <div class="inv-eta-banner ${sysEtaCls}">
         <span>${sysEtaLabel}</span>
         <span class="inv-eta-val">${sysEtaValue}</span>
@@ -2162,7 +2248,7 @@ function renderTopology(list) {
         <div class="bus-item">
           <div class="bus-label">Загальний струм</div>
           <div class="bus-val">${anyActive ? (totalCurrent >= 0 ? '+' : '') + totalCurrent.toFixed(2) + ' A' : '—'}</div>
-          <div class="bus-sub">Гілка А + Б</div>
+          <div class="bus-sub">${currentSrc}</div>
         </div>
         <div class="bus-item">
           <div class="bus-label">Запас енергії</div>
@@ -2254,6 +2340,254 @@ function updateTopHighlights(list) {
 
   renderTopology(list);
 }
+
+// ===== Inverter: Sandisolar 24V via SmartESS / Dessmonitor cloud (read-only) =====
+const INV_KEY = 'bms_studio_inverter_v1';
+const INV_BASE = 'https://web.dessmonitor.com/public/';
+const INV_COMPANY = 'bnrl_frRFjEz8Mkn';
+const INV_SETTING_IDS = [
+  'bat_maximum_charging_voltage', 'bat_floating_charge_voltage',
+  'bat_constant_pressure_floating_charge_waiting_time',
+  'bat_maximum_charging_current', 'bat_main_charging_priority'
+];
+let inv = { cfg: null, data: null, settings: null, error: null, busy: false, lastPoll: 0, lastSettings: 0 };
+try { inv.cfg = JSON.parse(localStorage.getItem(INV_KEY) || 'null'); } catch (e) { inv.cfg = null; }
+function invSave() { try { localStorage.setItem(INV_KEY, JSON.stringify(inv.cfg)); } catch (e) {} }
+
+async function sha1hex(str) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function invAuth(usr, pwdSha1) {
+  const act = `&action=authSource&usr=${encodeURIComponent(usr)}&company-key=${INV_COMPANY}` +
+    `&i18n=en_US&lang=en_US&source=1&_app_client_=android&_app_id_=wifiapp.volfw.smartess&_app_version_=1.0`;
+  const salt = String(Date.now());
+  const sign = await sha1hex(salt + pwdSha1 + act);
+  const r = await (await fetch(`${INV_BASE}?sign=${sign}&salt=${salt}${act}`)).json();
+  if (r.err !== 0) throw new Error(r.err === 261 ? 'Користувача не знайдено' : (r.desc || ('err ' + r.err)));
+  return { token: r.dat.token, secret: r.dat.secret, expiresAt: Date.now() + (r.dat.expire || 3600) * 1000 - 600000 };
+}
+
+async function invCall(act, retry = true) {
+  if (!inv.cfg.token || Date.now() > (inv.cfg.expiresAt || 0)) {
+    Object.assign(inv.cfg, await invAuth(inv.cfg.usr, inv.cfg.pwdSha1));
+    invSave();
+  }
+  const salt = String(Date.now());
+  const sign = await sha1hex(salt + inv.cfg.secret + inv.cfg.token + act);
+  const r = await (await fetch(`${INV_BASE}?sign=${sign}&salt=${salt}&token=${inv.cfg.token}${act}`)).json();
+  if (r.err !== 0 && retry && /TOKEN|SIGN|EXPIRE/i.test(r.desc || '')) {
+    inv.cfg.token = null;
+    return invCall(act, false);
+  }
+  if (r.err !== 0) throw new Error(r.desc || ('err ' + r.err));
+  return r.dat;
+}
+
+function invDevQuery() {
+  const d = inv.cfg.dev;
+  return `&pn=${d.pn}&devcode=${d.devcode}&devaddr=${d.devaddr}&sn=${encodeURIComponent(d.sn)}&i18n=en_US`;
+}
+
+async function invPickDevice(pnHint) {
+  const dat = await invCall('&action=webQueryDeviceEs&page=0&pagesize=50&i18n=en_US');
+  const list = (dat && dat.device) || [];
+  if (!list.length) throw new Error('У акаунті SmartESS немає пристроїв');
+  const dev = list.find(x => pnHint && (x.pn === pnHint || x.devalias === pnHint)) || list[0];
+  inv.cfg.dev = { pn: dev.pn, sn: dev.sn, devcode: dev.devcode, devaddr: dev.devaddr, alias: dev.devalias || dev.pn };
+  invSave();
+}
+
+// Cloud timestamps carry the server's timezone shift (whole hours): strip it.
+function invFixTs(ts) {
+  const offH = Math.round((Date.now() - ts) / 3600000);
+  return offH !== 0 ? ts + offH * 3600000 : ts;
+}
+
+const invNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+
+async function invPoll(force = false) {
+  if (!inv.cfg || !inv.cfg.dev || inv.busy) return;
+  if (!force && Date.now() - inv.lastPoll < 60000) return;
+  inv.busy = true;
+  try {
+    const dat = await invCall('&action=querySPDeviceLastData' + invDevQuery());
+    const p = {};
+    const raw = [];
+    for (const grp of Object.values((dat && dat.pars) || {})) {
+      for (const it of grp) {
+        p[it.id] = it.val;
+        raw.push([it.par, it.val, (it.unit || '').replace('�', '°')]);
+      }
+    }
+    inv.data = {
+      ts: invFixTs(dat && dat.gts ? Number(dat.gts) : Date.now()),
+      mode: p.sy_operating_mode,
+      gridV: invNum(p.gd_mains_voltage), gridHz: invNum(p.gd_mains_frequency),
+      pvV: invNum(p.pv_voltage), pvW: invNum(p.pv_output_power),
+      batV: invNum(p.bt_battery_voltage), batA: invNum(p.bt_battery_current),
+      loadW: invNum(p.bc_load_active_power), loadVA: invNum(p.bc_output_apparent_power),
+      loadPct: invNum(p.bc_load_percentage), tInv: invNum(p.sy_inverter_temperature),
+      raw
+    };
+    inv.error = null;
+    inv.lastPoll = Date.now();
+    if (force || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
+  } catch (e) {
+    inv.error = e.message || String(e);
+    inv.lastPoll = Date.now();
+  } finally {
+    inv.busy = false;
+    renderCards();
+  }
+}
+
+async function invReadSettings() {
+  const s = {};
+  for (const id of INV_SETTING_IDS) {
+    try {
+      const d = await invCall(`&action=queryDeviceCtrlValue&id=${id}` + invDevQuery());
+      s[id] = d.val;
+    } catch (e) {}
+  }
+  inv.settings = s;
+  inv.lastSettings = Date.now();
+}
+
+// ---------- UI ----------
+function invButton() {
+  if (inv.cfg && inv.cfg.dev) { invPoll(true); return; }
+  invOpenModal();
+}
+function invOpenModal() {
+  document.getElementById('inv-usr').value = (inv.cfg && inv.cfg.usr) || '';
+  document.getElementById('inv-pwd').value = '';
+  document.getElementById('inv-err').textContent = '';
+  document.getElementById('inv-modal').classList.add('show');
+}
+function invCloseModal() { document.getElementById('inv-modal').classList.remove('show'); }
+function invLogout() {
+  inv.cfg = null; inv.data = null; inv.settings = null; inv.error = null;
+  try { localStorage.removeItem(INV_KEY); } catch (e) {}
+  invCloseModal();
+  renderCards();
+}
+async function invLoginFromForm() {
+  const usr = document.getElementById('inv-usr').value.trim();
+  const pwd = document.getElementById('inv-pwd').value;
+  const pn = document.getElementById('inv-pn').value.trim();
+  const errEl = document.getElementById('inv-err');
+  const btn = document.getElementById('inv-login-btn');
+  if (!usr || !pwd) { errEl.textContent = 'Введіть логін і пароль'; return; }
+  btn.disabled = true;
+  errEl.textContent = 'Підключення…';
+  try {
+    const pwdSha1 = await sha1hex(pwd);
+    inv.cfg = { usr, pwdSha1, ...(await invAuth(usr, pwdSha1)) };
+    invSave();
+    await invPickDevice(pn);
+    invCloseModal();
+    await invPoll(true);
+  } catch (e) {
+    errEl.textContent = '❌ ' + (e.message || e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function invAgeText(ts) {
+  const m = Math.round((Date.now() - ts) / 60000);
+  return m < 1 ? 'щойно' : (m < 60 ? `${m} хв тому` : `${Math.round(m / 60)} год тому`);
+}
+
+function renderInverterBlock(bmsBusV) {
+  const sub = document.getElementById('btn-inverter-sub');
+  const btn = document.getElementById('btn-inverter');
+  if (btn) btn.classList.toggle('connected', Boolean(inv.data && !inv.error));
+  if (sub) sub.textContent = inv.data ? (inv.data.mode || 'SmartESS') : 'SmartESS';
+
+  if (!inv.cfg || !inv.cfg.dev) {
+    return `<div class="inv-setup" onclick="invOpenModal()">☀️ Підключіть інвертор: <b>увійти через SmartESS</b> • сонце, мережа, дім і налаштування заряду</div>`;
+  }
+  const d = inv.data;
+  if (!d) {
+    return `<div class="inv-setup" onclick="invPoll(true)">${inv.error ? '⚠️ ' + inv.error + ' • <b>повторити</b>' : '⏳ Завантаження даних інвертора…'}</div>`;
+  }
+
+  const f0 = (v, u) => (v === null || v === undefined) ? '—' : `${Math.round(v)} ${u}`;
+  const batW = (d.batV !== null && d.batA !== null) ? d.batV * d.batA : null;
+  const batCls = d.batA > 0.2 ? 'on-chg' : (d.batA < -0.2 ? 'on-dis' : '');
+  const gridOn = d.gridV && d.gridV > 100;
+  const loadShow = (d.loadW !== null && d.loadW > 0) ? f0(d.loadW, 'W') : f0(d.loadVA, 'VA');
+
+  // Inverter vs BMS voltage cross-check (cables, fuses, shunt)
+  let crossChip = '';
+  if (d.batV && bmsBusV) {
+    const dv = d.batV - bmsBusV;
+    const cls = Math.abs(dv) <= 0.3 ? 'ok' : (Math.abs(dv) <= 0.6 ? 'warn' : 'bad');
+    crossChip = `<span class="inv-chip ${cls}" title="Напруга АКБ очима інвертора проти суми напруг BMS">Інв ${d.batV.toFixed(1)} V • BMS ${bmsBusV.toFixed(2)} V • Δ ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V</span>`;
+  }
+
+  // Charge settings + balancing hint (24V LiFePO4 = 8S)
+  let settingsHtml = '';
+  const s = inv.settings;
+  if (s) {
+    const bulk = invNum(s.bat_maximum_charging_voltage);
+    const flt = invNum(s.bat_floating_charge_voltage);
+    const cv = invNum(s.bat_constant_pressure_floating_charge_waiting_time);
+    const perCell = v => v ? ` <span style="color:var(--muted);font-weight:600">(${(v / 8).toFixed(3)} V/ком.)</span>` : '';
+    let hint = '';
+    if (bulk) {
+      hint = bulk < 27.6
+        ? `<div class="inv-hint warn">⚖️ Bulk ${bulk.toFixed(1)} V = ${(bulk / 8).toFixed(3)} V/комірку. Це ледь вище порогу балансира BMS (3.40 V), а у фазі C.V струм швидко падає нижче 2.5 A, тож балансир майже не встигає працювати. Для балансування краще Bulk 27.6–28.0 V (3.45–3.50 V/комірку) з витримкою C.V ${cv || 60} хв.</div>`
+        : `<div class="inv-hint ok">⚖️ Bulk ${bulk.toFixed(1)} V (${(bulk / 8).toFixed(3)} V/комірку): комірки проходять поріг балансира 3.40 V із запасом.</div>`;
+    }
+    settingsHtml = `
+      <div class="inv-settings">
+        <div class="row"><span>Bulk (C.V)</span><b>${bulk ? bulk.toFixed(1) + ' V' : '—'}${perCell(bulk)}</b></div>
+        <div class="row"><span>Float</span><b>${flt ? flt.toFixed(1) + ' V' : '—'}${perCell(flt)}</b></div>
+        <div class="row"><span>C.V → Float</span><b>${cv !== null ? cv + ' хв' : '—'}</b></div>
+        <div class="row"><span>Макс. струм заряду</span><b>${s.bat_maximum_charging_current ? s.bat_maximum_charging_current + ' A' : '—'}</b></div>
+        <div class="row"><span>Пріоритет заряду</span><b>${s.bat_main_charging_priority || '—'}</b></div>
+        ${hint}
+      </div>`;
+  }
+
+  const rawHtml = `<details class="inv-raw"><summary>Усі параметри інвертора (${d.raw.length})</summary>
+    <div class="inv-settings">${d.raw.map(([k, v, u]) => `<div class="row"><span>${k}</span><b>${v}${u ? ' ' + u : ''}</b></div>`).join('')}</div></details>`;
+
+  return `
+    <div class="flow-grid">
+      <div class="flow-tile ${d.pvW > 5 ? 'on-sun' : ''}">
+        <div class="ft-ico">☀️</div><div class="ft-lbl">Сонце</div>
+        <div class="ft-val">${f0(d.pvW, 'W')}</div><div class="ft-sub">${d.pvV !== null ? d.pvV.toFixed(1) + ' V' : ''}</div>
+      </div>
+      <div class="flow-tile ${gridOn ? 'on-grid' : ''}">
+        <div class="ft-ico">🔌</div><div class="ft-lbl">Мережа</div>
+        <div class="ft-val">${gridOn ? d.gridV.toFixed(0) + ' V' : 'Немає'}</div><div class="ft-sub">${gridOn && d.gridHz ? d.gridHz.toFixed(1) + ' Hz' : 'Автономно'}</div>
+      </div>
+      <div class="flow-tile ${d.loadVA > 20 ? 'on-load' : ''}">
+        <div class="ft-ico">🏠</div><div class="ft-lbl">Дім</div>
+        <div class="ft-val">${loadShow}</div><div class="ft-sub">${d.loadPct !== null ? d.loadPct + '% навантаж.' : ''}</div>
+      </div>
+      <div class="flow-tile ${batCls}">
+        <div class="ft-ico">🔋</div><div class="ft-lbl">АКБ</div>
+        <div class="ft-val">${batW !== null ? (batW > 0 ? '+' : '') + Math.round(batW) + ' W' : '—'}</div><div class="ft-sub">${d.batA !== null ? (d.batA > 0 ? '+' : '') + d.batA.toFixed(1) + ' A' : ''}</div>
+      </div>
+    </div>
+    <div class="inv-cloud-row">
+      <span>⚙️ <b>${d.mode || '—'}</b>${d.tInv !== null ? ' • 🌡 ' + d.tInv + '°C' : ''} • ${invAgeText(d.ts)}${inv.error ? ' • ⚠️ ' + inv.error : ''}</span>
+      ${crossChip}
+      <span class="inv-chip" onclick="invOpenModal()" title="Акаунт SmartESS">👤</span>
+    </div>
+    ${settingsHtml}
+    ${rawHtml}
+  `;
+}
+
+setInterval(() => invPoll(false), 15000);
+setTimeout(() => invPoll(true), 1200);
 
 // ===== History log (Δ, balancer, current, cells) persisted in localStorage =====
 const HIST_KEY = 'bms_studio_hist_v1';
