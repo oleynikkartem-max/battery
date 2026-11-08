@@ -1403,6 +1403,13 @@ async function wakeDevice(dev, ms = 8000) {
   return false;
 }
 
+let gattLock = Promise.resolve();
+function withGattLock(fn) {
+  const run = gattLock.then(fn, fn);
+  gattLock = run.catch(() => {});
+  return run;
+}
+
 function isAnyDeviceInitializing() {
   return Object.values(sessions).some(s => s.initializing);
 }
@@ -1489,12 +1496,13 @@ async function tryAutoConnectRemembered(fromUserTap = false) {
     if (todo.length === 0) return;
     if (statusEl) statusEl.textContent = 'ПОШУК АКБ…';
 
-    for (const dev of todo) {
+    // All batteries at once: each one listens for its own advertisement and connects
+    // as soon as it is seen; only the GATT setup step is serialized (withGattLock).
+    await Promise.all(todo.map(dev => {
       if (fromUserTap) { forgottenIds.delete(dev.id); saveForgotten(); }
       if (sessions[dev.id]) sessions[dev.id].manualClose = false;
-      await setupDeviceSession(dev);
-      await sleep(600);
-    }
+      return setupDeviceSession(dev).catch(e => bleLog(`${devLabel(dev)}: ${errText(e)}`));
+    }));
   } catch (e) {
     bleLog('getDevices помилка: ' + (e && e.message || e));
   } finally {
@@ -1625,7 +1633,7 @@ async function setupDeviceSession(device) {
 
   // Remove any stale cached entry of same name or brand if ID changed
   for (const [k, v] of Object.entries(sessions)) {
-    if (k !== device.id && !v.device && (v.name === device.name || (v.brand === detectBrandByName(device.name || '') && v.brand !== 'Humsienk'))) {
+    if (k !== device.id && !v.device && !v.reconnecting && (v.name === device.name || (v.brand === detectBrandByName(device.name || '') && v.brand !== 'Humsienk'))) {
       delete sessions[k];
     }
   }
@@ -1743,54 +1751,55 @@ async function connectAndInit(session) {
   if (!session.device || session.reconnecting) return false;
   session.reconnecting = true;
   renderCards();
+  const tStart = Date.now();
 
   try {
     for (let attempt = 1; attempt <= 3; attempt++) {
+      let t0 = Date.now();
       try {
         session.error = null;
         session.polling = false;
 
-        if (attempt > 1 || session.failCount) {
-          await wakeDevice(session.device, attempt === 3 ? 10000 : 6000);
-        }
-        bleLog(`${devLabel(session)}: connect, спроба ${attempt}`);
+        // 1st try is direct (free when the handle is fresh). After a failure, wait until
+        // the battery is actually seen advertising, then connect right away.
+        if (attempt > 1) await wakeDevice(session.device, attempt === 3 ? 12000 : 8000);
+        t0 = Date.now();
         session.server = await withTimeout(session.device.gatt.connect(), 12000, 'connect');
-        session.initializing = true;
-        await sleep(250);
-        await withTimeout(resolveServiceAndChars(session), 8000, 'services');
 
-        await withTimeout(session.rxChar.startNotifications(), 5000, 'notify');
-        if (session.rxHandler) {
-          try { session.rxChar.removeEventListener('characteristicvaluechanged', session.rxHandler); } catch (e) {}
-        }
-        session.rxHandler = (ev) => {
-          const chunk = new Uint8Array(ev.target.value.buffer, ev.target.value.byteOffset, ev.target.value.byteLength);
-          onRxData(session, chunk);
-        };
-        session.rxChar.addEventListener('characteristicvaluechanged', session.rxHandler);
+        await withGattLock(async () => {
+          session.initializing = true;
+          try {
+            await withTimeout(resolveServiceAndChars(session), 8000, 'services');
+            await withTimeout(session.rxChar.startNotifications(), 5000, 'notify');
+            if (session.rxHandler) {
+              try { session.rxChar.removeEventListener('characteristicvaluechanged', session.rxHandler); } catch (e) {}
+            }
+            session.rxHandler = (ev) => {
+              const chunk = new Uint8Array(ev.target.value.buffer, ev.target.value.byteOffset, ev.target.value.byteLength);
+              onRxData(session, chunk);
+            };
+            session.rxChar.addEventListener('characteristicvaluechanged', session.rxHandler);
+            session.connected = true;
+            if (session.type === 'humsienk') {
+              await writeChar(session.txChar, hexToBytes('aa00000000'));
+              await sleep(200);
+            }
+            await pollSession(session, true);
+          } finally {
+            session.initializing = false;
+          }
+        });
 
-        session.connected = true;
-        renderCards();
-
-        if (session.type === 'humsienk') {
-          await writeChar(session.txChar, hexToBytes('aa00000000'));
-          await sleep(280);
-        }
-
-        session.initializing = false;
-        bleLog(`${devLabel(session)}: ✅ підключено (${session.type})`);
+        bleLog(`${devLabel(session)}: ✅ підключено за ${((Date.now() - tStart) / 1000).toFixed(1)} с (спроба ${attempt})`);
         session.failCount = 0;
         session.nextRetryAt = 0;
-        await pollSession(session, true);
         return true;
       } catch (innerErr) {
-        bleLog(`${devLabel(session)}: ❌ ${errText(innerErr)}`);
+        bleLog(`${devLabel(session)}: ❌ спроба ${attempt}: ${errText(innerErr)}`);
         session.connected = false;
-        session.initializing = false;
         try { if (session.device.gatt.connected) session.device.gatt.disconnect(); } catch (e) {}
-        if (attempt < 3) {
-          await sleep(1200);
-        }
+        // Instant failures (stale handle) go straight to listening; only pause after slow ones
+        if (attempt < 3 && Date.now() - t0 > 1500) await sleep(600);
       }
     }
     noteFailure(session);
@@ -2503,6 +2512,11 @@ const INV_SETTING_IDS = [
 ];
 let inv = { cfg: null, data: null, settings: null, error: null, busy: false, lastPoll: 0, lastSettings: 0 };
 try { inv.cfg = JSON.parse(localStorage.getItem(INV_KEY) || 'null'); } catch (e) { inv.cfg = null; }
+// Last known inverter data, so the card is filled the moment the page opens
+try {
+  const c = JSON.parse(localStorage.getItem(INV_KEY + '_cache') || 'null');
+  if (c && inv.cfg) { inv.data = c.data; inv.settings = c.settings; inv.lastSettings = c.lastSettings || 0; }
+} catch (e) {}
 function invSave() { try { localStorage.setItem(INV_KEY, JSON.stringify(inv.cfg)); } catch (e) {} }
 
 async function sha1hex(str) {
@@ -2584,7 +2598,8 @@ async function invPoll(force = false) {
     };
     inv.error = null;
     inv.lastPoll = Date.now();
-    if (force || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
+    if (force && !inv.settings || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
+    try { localStorage.setItem(INV_KEY + '_cache', JSON.stringify({ data: inv.data, settings: inv.settings, lastSettings: inv.lastSettings })); } catch (e) {}
   } catch (e) {
     inv.error = e.message || String(e);
     inv.lastPoll = Date.now();
@@ -2616,7 +2631,7 @@ function invOpenModal() {
 function invCloseModal() { document.getElementById('inv-modal').classList.remove('show'); }
 function invLogout() {
   inv.cfg = null; inv.data = null; inv.settings = null; inv.error = null;
-  try { localStorage.removeItem(INV_KEY); } catch (e) {}
+  try { localStorage.removeItem(INV_KEY); localStorage.removeItem(INV_KEY + '_cache'); } catch (e) {}
   invCloseModal();
   renderCards();
 }
@@ -2731,7 +2746,7 @@ let invMoreOpen = false;
 let invMoreHtml = '';
 
 setInterval(() => invPoll(false), 15000);
-setTimeout(() => invPoll(true), 1200);
+invPoll(true);
 
 // ===== History log (Δ, balancer, current, cells) persisted in localStorage =====
 const HIST_KEY = 'bms_studio_hist_v1';
@@ -3097,7 +3112,7 @@ function renderCards() {
 restoreCachedSessions();
 renderCards();
 window.addEventListener('load', () => {
-  setTimeout(() => tryAutoConnectRemembered(false), 300);
+  tryAutoConnectRemembered(false);
 });
 </script>
 </body>
