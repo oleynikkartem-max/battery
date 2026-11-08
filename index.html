@@ -1163,6 +1163,9 @@
     .inv-kv .row b { text-align:right; font-variant-numeric:tabular-nums; }
     .inv-kv .row i { font-style:normal; color:var(--muted); font-weight:600; }
     .inv-note { font-size:11.5px; line-height:1.45; color:#fcd34d; padding:8px 0 4px; }
+    .eta-sub { display:block; font-size:10.5px; font-weight:600; opacity:.75; margin-top:3px; line-height:1.35; }
+    .inv-eta-banner { gap:10px; }
+    .inv-eta-banner .inv-eta-val { white-space:nowrap; }
     .modal-back { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
     .modal-back.show { display:flex; }
     .modal { width:100%; max-width:360px; background:#0d1424; border:1px solid var(--border-highlight); border-radius:20px; padding:18px; color:var(--text); }
@@ -2227,6 +2230,113 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
   `;
 }
 
+
+// ===== Remaining-time model (BMS + inverter settings + inverter live data) =====
+// Defaults = this inverter's current settings; replaced by live values once read.
+const ETA_DEFAULTS = { offSoc: 15, gridSoc: 20, offV: 25.0, gridV: 26.0, maxChgA: 30, cvMin: 60 };
+const etaState = { ema: null, t: 0, sign: 0 };
+
+// Loads jump around (kettle, fridge compressor): average the bus current over ~3 min.
+// Reset on charge <-> discharge flip so the estimate reacts at once.
+function etaSmooth(I) {
+  const now = Date.now();
+  const sign = I > 0.3 ? 1 : (I < -0.3 ? -1 : 0);
+  if (etaState.ema === null || sign !== etaState.sign || now - etaState.t > 60000) {
+    etaState.ema = I; etaState.sign = sign; etaState.t = now;
+    return I;
+  }
+  const dt = (now - etaState.t) / 1000;
+  etaState.t = now;
+  etaState.ema += (I - etaState.ema) * (1 - Math.exp(-dt / 180));
+  return etaState.ema;
+}
+
+function etaParams() {
+  const p = { ...ETA_DEFAULTS, fromInverter: false };
+  const st = inv && inv.settings;
+  if (st) {
+    const n = k => invNum(st[k]);
+    if (n('bat_lithium_low_soc_protection_point') !== null) { p.offSoc = n('bat_lithium_low_soc_protection_point'); p.fromInverter = true; }
+    if (n('bat_mains_mode_lithium_soc_protection_point') !== null) p.gridSoc = n('bat_mains_mode_lithium_soc_protection_point');
+    if (n('bat_low_voltage_battery_protection_point')) p.offV = n('bat_low_voltage_battery_protection_point');
+    if (n('bat_low_voltage_point_of_battery_in_mains_mode')) p.gridV = n('bat_low_voltage_point_of_battery_in_mains_mode');
+    if (n('bat_maximum_charging_current')) p.maxChgA = n('bat_maximum_charging_current');
+    if (n('bat_constant_pressure_floating_charge_waiting_time') !== null) p.cvMin = n('bat_constant_pressure_floating_charge_waiting_time');
+  }
+  return p;
+}
+
+/*
+ strings: [{ nom, remMin, remMax }] for every 24V string on the bus.
+   Series pair: discharge ends when the EMPTIER battery hits the floor (remMin),
+   charge ends when the FULLER one is full and its BMS stops the string (remMax).
+ I: bus current, A (+ charge / − discharge), V: bus voltage
+*/
+function computeSystemEta(strings, I, V) {
+  const P = etaParams();
+  const d = inv && inv.data;
+  const gridOn = Boolean(d && d.gridV && d.gridV > 100);
+  const Iavg = etaSmooth(I);
+  const nomAll = strings.reduce((a, x) => a + x.nom, 0);
+  const remAll = strings.reduce((a, x) => a + x.remMin, 0);
+  const Vb = V || 25.6;
+  const src = P.fromInverter ? 'з інвертора' : 'типові';
+
+  if (!strings.length || nomAll <= 0) {
+    return { cls: '', label: '⏱ Час роботи:', value: 'Очікування даних BMS', sub: '' };
+  }
+
+  // ---- Discharging ----
+  if (Iavg < -0.3) {
+    const floor = gridOn ? P.gridSoc : P.offSoc;
+    const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - floor / 100 * x.nom), 0);
+    const hrs = usable / Math.abs(Iavg);
+    // Voltage under heavy load sags well below the inverter's V threshold (seen 24.7 V at 62 A)
+    // without a shutdown, so this inverter cuts off by SOC: no voltage-based estimate here.
+    const sub = `при ~${Math.round(Math.abs(Iavg) * Vb)} W (середнє за ~3 хв) • до ${floor}% SOC (${src})`;
+    return {
+      cls: 'discharging',
+      label: gridOn ? '⏱ До переходу на мережу:' : '⏱ До відключення інвертора:',
+      value: usable > 0 ? `~${formatHoursMinutes(hrs)}` : 'на порозі',
+      sub
+    };
+  }
+
+  // ---- Charging: CC up to ~95%, then C.V hold (current tapers), then float ----
+  if (Iavg > 0.3) {
+    const needCC = strings.reduce((a, x) => a + Math.max(0, 0.95 * x.nom - x.remMax), 0);
+    const needAll = strings.reduce((a, x) => a + Math.max(0, x.nom - x.remMax), 0);
+    const tCC = needCC / Iavg;
+    const tail = needAll - needCC;
+    const tCV = Math.min(P.cvMin / 60, tail / Math.max(0.5, Iavg * 0.35));
+    const limited = P.maxChgA && Iavg >= P.maxChgA * 0.9;
+    const sub = `~${Iavg.toFixed(1)} A${limited ? ` (ліміт інвертора ${P.maxChgA} A)` : ''}` +
+      (needCC > 0 ? ` • до 95% ~${formatHoursMinutes(tCC)} + витримка C.V` : ` • витримка C.V до ${P.cvMin} хв`);
+    return {
+      cls: 'charging',
+      label: needCC > 0 ? '⚡ До повного заряду:' : '⚡ Добивання (C.V):',
+      value: `~${formatHoursMinutes(Math.max(0.03, tCC + tCV))}`,
+      sub
+    };
+  }
+
+  // ---- Idle: what happens if the grid goes down right now ----
+  if (d && (d.loadVA !== null || d.loadW !== null)) {
+    const loadW = Math.max(d.loadW || 0, (d.loadVA || 0) * 0.7);
+    const drawW = loadW / 0.92 + 40;   // inverter efficiency + ~40 W own consumption
+    const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - P.offSoc / 100 * x.nom), 0);
+    const hrs = (usable * Vb) / drawW;
+    return {
+      cls: '',
+      label: gridOn ? '🔋 Якщо зникне мережа:' : '⏱ Час роботи:',
+      value: `~${formatHoursMinutes(hrs)}`,
+      sub: `навантаження ~${Math.round(loadW)} W + інвертор • до ${P.offSoc}% SOC`
+    };
+  }
+  const hrs300 = (Math.max(0, remAll - P.offSoc / 100 * nomAll) * Vb) / 300;
+  return { cls: '', label: '⏱ Резерв:', value: `~${formatHoursMinutes(hrs300)}`, sub: `оцінка при 300 W • до ${P.offSoc}% SOC` };
+}
+
 function renderTopology(list) {
   const panel = document.getElementById('topology-panel');
   const { sandi, sjy, hs1, hs2 } = getTopologySlots(list);
@@ -2349,31 +2459,24 @@ function renderTopology(list) {
   const totalNomAh = (vSandi || vSjy ? 100 : 0) + (stringBComplete ? 100 : 0) || 100;
   const totalKwh = totalRemAh > 0 ? (totalRemAh * 25.6 / 1000) : 2.56;
 
-  // System-wide Remaining Time Banner calculation
-  let sysEtaLabel = '⏱ Час роботи при поточному навантаженні:';
-  let sysEtaValue = '—';
-  let sysEtaCls = '';
-
-  if (anyActive) {
-    if (totalCurrent < -0.08 && totalRemAh > 0) {
-      const hrsLeft = totalRemAh / Math.abs(totalCurrent);
-      sysEtaCls = 'discharging';
-      sysEtaLabel = `⏱ Залишилось часу (при ${Math.round(Math.abs(totalPower))} W):`;
-      sysEtaValue = `~${formatHoursMinutes(hrsLeft)}`;
-    } else if (totalCurrent > 0.08 && totalRemAh > 0) {
-      const hrsFull = Math.max(0.03, Math.max(0, totalNomAh - totalRemAh) / totalCurrent);
-      sysEtaCls = 'charging';
-      sysEtaLabel = `⚡ До повного заряду (+${Math.round(totalPower)} W):`;
-      sysEtaValue = `~${formatHoursMinutes(hrsFull)}`;
-    } else if (totalRemAh > 0) {
-      const hrsAt300W = (totalRemAh * 25.6) / 300;  // kWh / 300W
-      sysEtaLabel = `⏱ У резерві ${totalRemAh.toFixed(0)} Ah (оцінка при 300 W):`;
-      sysEtaValue = `~${formatHoursMinutes(hrsAt300W)}`;
-    } else {
-      sysEtaLabel = '⏱ Час роботи:';
-      sysEtaValue = 'Очікування даних BMS';
-    }
+  // System-wide remaining time (see computeSystemEta)
+  const etaStrings = [];
+  const strOf = (x, y) => {
+    const rx = getEffectiveRemAh(x.data), ry = y ? getEffectiveRemAh(y.data) : rx;
+    const nom = Math.min(x.data.nomCap || 100, y ? (y.data.nomCap || 100) : 100);
+    return { nom, remMin: Math.min(rx, ry), remMax: Math.max(rx, ry) };
+  };
+  if (stringAComplete) etaStrings.push(strOf(sandi, sjy));
+  else if (vSandi > 0) etaStrings.push(strOf(sandi));
+  else if (vSjy > 0) etaStrings.push(strOf(sjy));
+  if (stringBComplete) etaStrings.push(strOf(hs1, hs2));
+  if (!etaStrings.length && inv.data && inv.data.batSoc !== null && inv.data.batSoc !== undefined) {
+    etaStrings.push({ nom: 100, remMin: inv.data.batSoc, remMax: inv.data.batSoc });  // inverter SOC fallback
   }
+  const eta = anyActive || etaStrings.length
+    ? computeSystemEta(etaStrings, totalCurrent, busVoltNum)
+    : { cls: '', label: '⏱ Час роботи при поточному навантаженні:', value: '—', sub: '' };
+  const sysEtaCls = eta.cls, sysEtaLabel = eta.label, sysEtaValue = eta.value, sysEtaSub = eta.sub;
 
   panel.innerHTML = `
     <!-- INVERTER 24V MAIN BUS -->
@@ -2399,7 +2502,7 @@ function renderTopology(list) {
       ${renderInverterBlock(bmsBusV)}
 
       <div class="inv-eta-banner ${sysEtaCls}">
-        <span>${sysEtaLabel}</span>
+        <span>${sysEtaLabel}${sysEtaSub ? `<span class="eta-sub">${sysEtaSub}</span>` : ''}</span>
         <span class="inv-eta-val">${sysEtaValue}</span>
       </div>
 
@@ -2508,7 +2611,9 @@ const INV_COMPANY = 'bnrl_frRFjEz8Mkn';
 const INV_SETTING_IDS = [
   'bat_maximum_charging_voltage', 'bat_floating_charge_voltage',
   'bat_constant_pressure_floating_charge_waiting_time',
-  'bat_maximum_charging_current', 'bat_main_charging_priority'
+  'bat_maximum_charging_current', 'bat_main_charging_priority',
+  'bat_lithium_low_soc_protection_point', 'bat_mains_mode_lithium_soc_protection_point',
+  'bat_low_voltage_battery_protection_point', 'bat_low_voltage_point_of_battery_in_mains_mode'
 ];
 let inv = { cfg: null, data: null, settings: null, error: null, busy: false, lastPoll: 0, lastSettings: 0 };
 try { inv.cfg = JSON.parse(localStorage.getItem(INV_KEY) || 'null'); } catch (e) { inv.cfg = null; }
@@ -2591,14 +2696,15 @@ async function invPoll(force = false) {
       mode: p.sy_operating_mode,
       gridV: invNum(p.gd_mains_voltage), gridHz: invNum(p.gd_mains_frequency),
       pvV: invNum(p.pv_voltage), pvW: invNum(p.pv_output_power),
-      batV: invNum(p.bt_battery_voltage), batA: invNum(p.bt_battery_current),
+      batV: invNum(p.bt_battery_voltage), batA: invNum(p.bt_battery_current), batSoc: invNum(p.bt_battery_capacity),
       loadW: invNum(p.bc_load_active_power), loadVA: invNum(p.bc_output_apparent_power),
       loadPct: invNum(p.bc_load_percentage), tInv: invNum(p.sy_inverter_temperature),
       raw
     };
     inv.error = null;
     inv.lastPoll = Date.now();
-    if (force && !inv.settings || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
+    const settingsStale = !inv.settings || !('bat_lithium_low_soc_protection_point' in inv.settings);
+    if ((force && settingsStale) || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
     try { localStorage.setItem(INV_KEY + '_cache', JSON.stringify({ data: inv.data, settings: inv.settings, lastSettings: inv.lastSettings })); } catch (e) {}
   } catch (e) {
     inv.error = e.message || String(e);
