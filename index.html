@@ -1324,15 +1324,17 @@ function switchTab(tabName) {
 async function handleVisualSlotClick(sessionId, connectMode) {
   const s = sessions[sessionId];
   if (!s) {
+    // No cached session at all — open filtered BLE picker
     await connectBattery(connectMode);
     return;
   }
   if (!s.connected) {
-    // Stay on current tab and connect this battery immediately
-    await manualReconnect(sessionId, true);
+    // Try reconnect WITHOUT fallback picker (avoids showing wrong devices in picker).
+    // If reconnect fails silently, user can tap the brand button at the top to pick manually.
+    await manualReconnect(sessionId, false);
     return;
   }
-  // If already connected, switch to Details tab and scroll to its card
+  // Already connected — switch to Details tab and scroll to its card
   switchTab('details');
   setTimeout(() => {
     const el = document.getElementById('card-' + sessionId);
@@ -1983,9 +1985,9 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
           <div class="vis-bar-fill" style="width:${Math.min(100, Math.max(4, soc))}%"></div>
         </div>
 
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:600;">
-          <span>${etaShort}</span>
-          <span style="color:var(--muted);">${pwr}</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:12px; font-weight:800; color:#e2e8f0;">${etaShort}</span>
+          <span style="font-size:11px; color:var(--muted); font-weight:600;">${pwr}</span>
         </div>
       </div>
 
@@ -2095,6 +2097,12 @@ function renderTopology(list) {
     remAhB = Math.min(getEffectiveRemAh(hs1.data), getEffectiveRemAh(hs2.data));
   }
 
+  // If remAh still zero but we have SOC, estimate from SOC × 100Ah per string
+  if (remAhA === 0 && (sandi || sjy)) {
+    const socA = sandi ? (sandi.data.soc || 0) : (sjy ? (sjy.data.soc || 0) : 0);
+    remAhA = socA; // soc% × 100Ah nominal / 100 ≈ socA Ah
+  }
+
   const totalRemAh = remAhA + remAhB;
   const totalNomAh = (vSandi || vSjy ? 100 : 0) + (stringBComplete ? 100 : 0) || 100;
   const totalKwh = totalRemAh > 0 ? (totalRemAh * 25.6 / 1000) : 2.56;
@@ -2104,21 +2112,24 @@ function renderTopology(list) {
   let sysEtaValue = '—';
   let sysEtaCls = '';
 
-  if (anyActive && totalRemAh > 0) {
-    if (totalCurrent < -0.08) {
+  if (anyActive) {
+    if (totalCurrent < -0.08 && totalRemAh > 0) {
       const hrsLeft = totalRemAh / Math.abs(totalCurrent);
       sysEtaCls = 'discharging';
       sysEtaLabel = `⏱ Залишилось часу (при ${Math.round(Math.abs(totalPower))} W):`;
       sysEtaValue = `~${formatHoursMinutes(hrsLeft)}`;
-    } else if (totalCurrent > 0.08) {
+    } else if (totalCurrent > 0.08 && totalRemAh > 0) {
       const hrsFull = Math.max(0.03, Math.max(0, totalNomAh - totalRemAh) / totalCurrent);
       sysEtaCls = 'charging';
       sysEtaLabel = `⚡ До повного заряду (+${Math.round(totalPower)} W):`;
       sysEtaValue = `~${formatHoursMinutes(hrsFull)}`;
-    } else {
-      const hrsAt300W = (totalKwh * 1000) / 300;
-      sysEtaLabel = `⏱ У резерві (${totalRemAh.toFixed(0)} Ah • при 300W):`;
+    } else if (totalRemAh > 0) {
+      const hrsAt300W = (totalRemAh * 25.6) / 300;  // kWh / 300W
+      sysEtaLabel = `⏱ У резерві ${totalRemAh.toFixed(0)} Ah (оцінка при 300 W):`;
       sysEtaValue = `~${formatHoursMinutes(hrsAt300W)}`;
+    } else {
+      sysEtaLabel = '⏱ Час роботи:';
+      sysEtaValue = 'Очікування даних BMS';
     }
   }
 
