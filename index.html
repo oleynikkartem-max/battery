@@ -335,6 +335,49 @@
       border: 1px solid rgba(245, 158, 11, 0.35);
     }
 
+    .inv-eta-banner {
+      background: rgba(10, 15, 29, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    .inv-eta-banner.discharging {
+      background: rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fde68a;
+    }
+
+    .inv-eta-banner.charging {
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #a7f3d0;
+    }
+
+    .inv-eta-val {
+      font-size: 14px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+
+    .inv-eta-banner.discharging .inv-eta-val {
+      color: #fbbf24;
+    }
+
+    .inv-eta-banner.charging .inv-eta-val {
+      color: #34d399;
+    }
+
     .bus-bar {
       background: var(--card-inner);
       border: 1px solid var(--border);
@@ -1339,24 +1382,20 @@ async function connectBattery(mode) {
     let options;
     if (mode === 'sandisolar') {
       options = {
-        filters: [{ namePrefix: 'HL' }, { namePrefix: 'SH' }, { services: [UUID_SVC_HL] }],
+        filters: [{ namePrefix: 'HL' }, { namePrefix: 'SH' }],
         optionalServices: OPTIONAL_SERVICES
       };
     } else if (mode === 'humsienk') {
       options = {
         filters: [
           { namePrefix: 'HS' },
-          { namePrefix: 'HUM' },
-          { namePrefix: 'ECO' },
-          { namePrefix: 'DCH' },
-          { services: [UUID_SVC_HS] },
-          { services: [UUID_SVC_JBD] }
+          { namePrefix: 'HUM' }
         ],
         optionalServices: OPTIONAL_SERVICES
       };
     } else if (mode === 'sjy') {
       options = {
-        filters: [{ namePrefix: 'DP04' }, { namePrefix: 'JBD' }, { namePrefix: 'SJY' }, { services: [UUID_SVC_JBD] }],
+        filters: [{ namePrefix: 'DP04' }, { namePrefix: 'SJY' }, { namePrefix: 'JBD' }],
         optionalServices: OPTIONAL_SERVICES
       };
     } else {
@@ -1850,26 +1889,39 @@ function getCellDeltaMv(session) {
   return Math.round((Math.max(...cells) - Math.min(...cells)) * 1000);
 }
 
-function formatEta(d) {
-  const cur = d.current || 0;
-  const rem = d.remCap;
-  const nom = d.nomCap;
-  if (!rem || Math.abs(cur) < 0.15) return 'Режим очікування';
-  let hrs = 0;
-  let prefix = '';
-  if (cur < -0.15) {
-    hrs = rem / Math.abs(cur);
-    prefix = 'Вистачить на ~';
-  } else if (cur > 0.15 && nom) {
-    hrs = Math.max(0.05, (nom - rem) / cur);
-    prefix = 'Повний через ~';
-  } else {
-    return '';
-  }
-  if (hrs > 48) return prefix + '> 48 год';
+function formatHoursMinutes(hrs) {
+  if (!hrs || isNaN(hrs) || hrs <= 0) return '0 хв';
+  if (hrs > 72) return '> 72 год';
   const h = Math.floor(hrs);
   const m = Math.round((hrs - h) * 60);
-  return `${prefix}${h > 0 ? h + ' год ' : ''}${m} хв`;
+  if (m === 60) return `${h + 1} год 0 хв`;
+  return `${h > 0 ? h + ' год ' : ''}${m} хв`;
+}
+
+function getEffectiveRemAh(d) {
+  if (!d) return 0;
+  const nom = d.nomCap || 100;
+  if (d.remCap !== undefined && d.remCap !== null && d.remCap > 0) return d.remCap;
+  if (d.soc !== undefined && d.soc !== null) return (d.soc / 100) * nom;
+  return 0;
+}
+
+function formatEta(d, shortMode = false) {
+  if (!d) return '—';
+  const cur = d.current || 0;
+  const nom = d.nomCap || 100;
+  const rem = getEffectiveRemAh(d);
+  if (rem <= 0 && d.soc === undefined) return 'Очікування даних';
+
+  if (cur < -0.08) {
+    const hrs = rem / Math.abs(cur);
+    return (shortMode ? '⏱ ~' : '⏱ Залишилось ~') + formatHoursMinutes(hrs);
+  }
+  if (cur > 0.08) {
+    const hrs = Math.max(0.03, Math.max(0, nom - rem) / cur);
+    return (shortMode ? '⚡ ~' : '⚡ Повний через ~') + formatHoursMinutes(hrs);
+  }
+  return shortMode ? `🔋 ${rem.toFixed(0)} Ah` : '⏱ Режим очікування';
 }
 
 function getTopologySlots(list) {
@@ -1901,6 +1953,8 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
   const soc = d.soc !== undefined ? d.soc : 0;
   const deltaMv = getCellDeltaMv(session);
   const cur = d.current !== undefined ? `${d.current >= 0 ? '+' : ''}${d.current.toFixed(1)} A` : '—';
+  const pwr = d.power !== undefined ? `${Math.round(Math.abs(d.power))} W` : '';
+  const etaShort = formatEta(d, true);
   const stateCls = !session.connected
     ? 'disconnected-slot'
     : (isStandby ? 'standby-conn' : 'connected');
@@ -1927,6 +1981,11 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
 
         <div class="vis-bar">
           <div class="vis-bar-fill" style="width:${Math.min(100, Math.max(4, soc))}%"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-bottom:6px; font-weight:600;">
+          <span>${etaShort}</span>
+          <span style="color:var(--muted);">${pwr}</span>
         </div>
       </div>
 
@@ -2010,25 +2069,58 @@ function renderTopology(list) {
   let flowClass = '';
   let flowText = 'Режим очікування';
   if (anyActive) {
-    if (totalCurrent > 0.1) {
+    if (totalCurrent > 0.08) {
       flowClass = 'charging';
       flowText = `⚡ Зарядка +${Math.round(totalPower)} W`;
-    } else if (totalCurrent < -0.1) {
+    } else if (totalCurrent < -0.08) {
       flowClass = 'discharging';
-      flowText = `🏠 Живлення ${Math.round(Math.abs(totalPower))} W`;
+      flowText = `🏠 Споживання ${Math.round(Math.abs(totalPower))} W`;
     } else {
       flowText = 'Спокій • 0 W';
     }
   }
 
-  // Energy kWh calculation
-  const kwhA = stringAComplete
-    ? (((sandi.data.remCap || 100) + (sjy.data.remCap || 100)) / 2) * 25.6 / 1000
-    : ((vSandi || vSjy) ? 2.56 : 0);
-  const kwhB = stringBComplete
-    ? (((hs1.data.remCap || 100) + (hs2.data.remCap || 100)) / 2) * 25.6 / 1000
-    : 0;
-  const totalKwh = (kwhA + kwhB) || 2.56;
+  // Usable Remaining Ah & kWh on the 24V Bus
+  let remAhA = 0;
+  if (stringAComplete) {
+    remAhA = Math.min(getEffectiveRemAh(sandi.data), getEffectiveRemAh(sjy.data));
+  } else if (vSandi > 0) {
+    remAhA = getEffectiveRemAh(sandi.data);
+  } else if (vSjy > 0) {
+    remAhA = getEffectiveRemAh(sjy.data);
+  }
+
+  let remAhB = 0;
+  if (stringBComplete) {
+    remAhB = Math.min(getEffectiveRemAh(hs1.data), getEffectiveRemAh(hs2.data));
+  }
+
+  const totalRemAh = remAhA + remAhB;
+  const totalNomAh = (vSandi || vSjy ? 100 : 0) + (stringBComplete ? 100 : 0) || 100;
+  const totalKwh = totalRemAh > 0 ? (totalRemAh * 25.6 / 1000) : 2.56;
+
+  // System-wide Remaining Time Banner calculation
+  let sysEtaLabel = '⏱ Час роботи при поточному навантаженні:';
+  let sysEtaValue = '—';
+  let sysEtaCls = '';
+
+  if (anyActive && totalRemAh > 0) {
+    if (totalCurrent < -0.08) {
+      const hrsLeft = totalRemAh / Math.abs(totalCurrent);
+      sysEtaCls = 'discharging';
+      sysEtaLabel = `⏱ Залишилось часу (при ${Math.round(Math.abs(totalPower))} W):`;
+      sysEtaValue = `~${formatHoursMinutes(hrsLeft)}`;
+    } else if (totalCurrent > 0.08) {
+      const hrsFull = Math.max(0.03, Math.max(0, totalNomAh - totalRemAh) / totalCurrent);
+      sysEtaCls = 'charging';
+      sysEtaLabel = `⚡ До повного заряду (+${Math.round(totalPower)} W):`;
+      sysEtaValue = `~${formatHoursMinutes(hrsFull)}`;
+    } else {
+      const hrsAt300W = (totalKwh * 1000) / 300;
+      sysEtaLabel = `⏱ У резерві (${totalRemAh.toFixed(0)} Ah • при 300W):`;
+      sysEtaValue = `~${formatHoursMinutes(hrsAt300W)}`;
+    }
+  }
 
   panel.innerHTML = `
     <!-- INVERTER 24V MAIN BUS -->
@@ -2051,6 +2143,11 @@ function renderTopology(list) {
         <div class="inv-power-pill ${flowClass}">${flowText}</div>
       </div>
 
+      <div class="inv-eta-banner ${sysEtaCls}">
+        <span>${sysEtaLabel}</span>
+        <span class="inv-eta-val">${sysEtaValue}</span>
+      </div>
+
       <div class="bus-bar">
         <div class="bus-item">
           <div class="bus-label">Загальний струм</div>
@@ -2060,7 +2157,7 @@ function renderTopology(list) {
         <div class="bus-item">
           <div class="bus-label">Запас енергії</div>
           <div class="bus-val">${totalKwh.toFixed(2)} кВт·год</div>
-          <div class="bus-sub">Ціль: 5.12 кВт·год</div>
+          <div class="bus-sub">Залишок: ${totalRemAh > 0 ? totalRemAh.toFixed(0) : '100'} Ah</div>
         </div>
         <div class="bus-item">
           <div class="bus-label">Ємність 24V</div>
