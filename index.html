@@ -178,7 +178,7 @@
     /* Quick Connect Dock */
     .connect-bar {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: 8px;
       margin-bottom: 14px;
     }
@@ -1137,51 +1137,44 @@
       cursor: pointer;
     }
 
-    /* ===== Inverter (SmartESS cloud) ===== */
-    .connect-btn { min-width: 0; }
-    .connect-btn > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    @media (max-width: 420px) { .connect-btn { font-size: 11px; padding: 9px 3px; } }
-    .flow-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; }
-    .flow-tile { background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:10px 6px; text-align:center; min-width:0; transition:all .3s; }
-    .flow-tile .ft-ico { font-size:18px; line-height:1; }
-    .flow-tile .ft-lbl { font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
-    .flow-tile .ft-val { font-size:16px; font-weight:800; color:var(--text); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .flow-tile .ft-sub { font-size:10px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .flow-tile.on-sun  { border-color:rgba(245,158,11,.45); box-shadow:0 0 18px var(--amber-glow); }
-    .flow-tile.on-grid { border-color:rgba(59,130,246,.45); box-shadow:0 0 18px var(--blue-glow); }
-    .flow-tile.on-load { border-color:rgba(6,182,212,.45); box-shadow:0 0 18px var(--cyan-glow); }
-    .flow-tile.on-chg  { border-color:rgba(16,185,129,.45); box-shadow:0 0 18px var(--emerald-glow); }
-    .flow-tile.on-dis  { border-color:rgba(244,63,94,.45); box-shadow:0 0 18px var(--rose-glow); }
-    .inv-cloud-row { display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin-top:4px; }
-    .inv-cloud-row b { color:var(--text); }
-    .inv-chip { background:var(--card-inner); border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-weight:700; cursor:pointer; }
-    .inv-chip.warn { color:var(--amber); border-color:rgba(245,158,11,.4); }
-    .inv-chip.bad { color:var(--rose); border-color:rgba(244,63,94,.4); }
-    .inv-chip.ok { color:var(--emerald); border-color:rgba(16,185,129,.4); }
-    .inv-setup { margin:12px 0 4px; padding:12px; border:1px dashed var(--border-highlight); border-radius:14px; text-align:center; font-size:12px; color:var(--muted); cursor:pointer; }
-    .inv-setup b { color:#60a5fa; }
-    .inv-settings { margin-top:10px; background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:8px 12px; font-size:12px; }
-    .inv-settings .row { display:flex; justify-content:space-between; gap:8px; padding:4px 0; border-bottom:1px solid var(--border); }
-    .inv-settings .row:last-of-type { border-bottom:0; }
-    .inv-settings .row span:first-child { color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; }
-    .inv-settings .row b { text-align:right; }
-    .inv-hint { margin-top:8px; padding:8px 10px; border-radius:10px; font-size:12px; line-height:1.45; }
-    .inv-hint.warn { background:rgba(245,158,11,.1); color:#fcd34d; border:1px solid rgba(245,158,11,.3); }
-    .inv-hint.ok { background:rgba(16,185,129,.1); color:#6ee7b7; border:1px solid rgba(16,185,129,.3); }
-    .inv-raw summary { cursor:pointer; color:var(--muted); font-size:11px; font-weight:700; margin-top:10px; }
+    /* ===== Inverter (SmartESS cloud) — same language as .bus-bar ===== */
+    .flow-bar { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:10px 4px; margin-bottom:12px; }
+    .flow-item { text-align:center; min-width:0; padding:0 4px; border-right:1px solid var(--border); }
+    .flow-item:last-child { border-right:0; }
+    .flow-item .bus-val { font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .3s; }
+    .flow-item .bus-sub { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .flow-item.sun .bus-val { color:#fbbf24; }
+    .flow-item.grid .bus-val { color:#60a5fa; }
+    .flow-item.load .bus-val { color:#22d3ee; }
+    .flow-item.chg .bus-val { color:#34d399; }
+    .flow-item.dis .bus-val { color:#fb7185; }
+    .inv-line { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; color:var(--muted); margin:-4px 2px 12px; }
+    .inv-line b { color:#e2e8f0; font-weight:700; }
+    .inv-line .link { color:#60a5fa; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .inv-line .dv-ok { color:#34d399; } .inv-line .dv-warn { color:#fbbf24; } .inv-line .dv-bad { color:#fb7185; }
+    .inv-more { margin-top:12px; }
+    .inv-more summary { list-style:none; cursor:pointer; font-size:11px; font-weight:700; color:var(--muted); text-align:center; padding:4px; }
+    .inv-more summary::-webkit-details-marker { display:none; }
+    .inv-more[open] summary { color:#e2e8f0; }
+    .inv-kv { background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:6px 12px; margin-top:8px; font-size:12px; }
+    .inv-kv .row { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px solid var(--border); }
+    .inv-kv .row:last-child { border-bottom:0; }
+    .inv-kv .row span { color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .inv-kv .row b { text-align:right; font-variant-numeric:tabular-nums; }
+    .inv-kv .row i { font-style:normal; color:var(--muted); font-weight:600; }
+    .inv-note { font-size:11.5px; line-height:1.45; color:#fcd34d; padding:8px 0 4px; }
     .modal-back { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
     .modal-back.show { display:flex; }
-    .modal { width:100%; max-width:380px; background:#0d1424; border:1px solid var(--border-highlight); border-radius:18px; padding:18px; color:var(--text); }
-    .modal h3 { margin:0 0 6px; font-size:16px; }
-    .modal p { margin:0 0 10px; font-size:12px; color:var(--muted); line-height:1.45; }
-    .modal label { display:block; font-size:11px; color:var(--muted); font-weight:700; margin:8px 0 4px; }
-    .modal input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border-highlight); background:var(--card-inner); color:var(--text); font-size:16px; }
+    .modal { width:100%; max-width:360px; background:#0d1424; border:1px solid var(--border-highlight); border-radius:20px; padding:18px; color:var(--text); }
+    .modal h3 { margin:0 0 4px; font-size:16px; }
+    .modal p { margin:0 0 8px; font-size:12px; color:var(--muted); line-height:1.45; }
+    .modal label { display:block; font-size:11px; color:var(--muted); font-weight:700; margin:10px 0 4px; }
+    .modal input { width:100%; padding:11px 12px; border-radius:12px; border:1px solid var(--border-highlight); background:var(--card-inner); color:var(--text); font-size:16px; }
     .modal details { margin-top:10px; font-size:12px; color:var(--muted); }
-    .modal .btns { display:flex; gap:8px; margin-top:14px; }
+    .modal .btns { display:flex; gap:8px; margin-top:16px; }
     .modal button { flex:1; padding:11px; border-radius:12px; border:1px solid var(--border-highlight); background:var(--card-inner); color:var(--text); font-weight:800; font-size:14px; }
     .modal button.primary { background:var(--blue); border-color:var(--blue); }
     .modal .err { color:#fda4af; font-size:12px; margin-top:8px; min-height:16px; }
-    @media (max-width:420px) { .flow-grid { grid-template-columns:repeat(2,1fr); } }
   </style>
 </head>
 <body>
@@ -1193,7 +1186,7 @@
       <div class="app-icon">⚡</div>
       <div>
         <h1>BMS Studio</h1>
-        <div class="header-sub">Інвертор Sandisolar 24V • АКБ 2S2P (200Ah)</div>
+        <div class="header-sub">Домашня система 24V • 2S2P (200Ah)</div>
       </div>
     </div>
     <div class="live-badge" onclick="tryAutoConnectRemembered(true)" title="Оновити / підключити збережені АКБ">
@@ -1215,10 +1208,6 @@
     <button id="btn-humsienk" class="connect-btn" onclick="connectBattery('humsienk')">
       <span>Humsienk</span>
       <span class="sub">Гілка Б • 1/2</span>
-    </button>
-    <button id="btn-inverter" class="connect-btn" onclick="invButton()">
-      <span>Інвертор</span>
-      <span class="sub" id="btn-inverter-sub">SmartESS</span>
     </button>
     <button class="connect-btn" onclick="connectBattery('all')">
       <span>+ Додати</span>
@@ -1251,7 +1240,7 @@
 <div id="inv-modal" class="modal-back" onclick="if(event.target===this)invCloseModal()">
   <div class="modal">
     <h3>🔌 Інвертор через SmartESS</h3>
-    <p>Логін і пароль від застосунку SmartESS. Браузер ходить напряму в хмару SmartESS (Dessmonitor), без проміжних серверів. Пароль не зберігається: лишаються тільки його SHA-1 хеш і токен, і лише на цьому пристрої. Сайт тільки читає дані й нічого не змінює в інверторі.</p>
+    <p>Логін від застосунку SmartESS. Дані йдуть напряму з хмари SmartESS, лише читання. Пароль не зберігається — тільки його хеш і токен на цьому пристрої.</p>
     <label>Логін SmartESS</label>
     <input id="inv-usr" autocomplete="username" autocapitalize="off" autocorrect="off">
     <label>Пароль</label>
@@ -1299,6 +1288,22 @@ let centralPollingBusy = false;
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
+
+// iOS/Bluefy: gatt.connect() can hang forever when a device is out of range,
+// which would leave `reconnecting` stuck and block polling + all retries.
+function withTimeout(promise, ms, label) {
+  let t;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { t = setTimeout(() => rej(new Error(label + ' timeout')), ms); })
+  ]).finally(() => clearTimeout(t));
+}
+
+// Devices the user removed with the ✕ button: auto-connect must not bring them back.
+const FORGOT_KEY = 'bms_studio_forgotten_v1';
+let forgottenIds = new Set();
+try { forgottenIds = new Set(JSON.parse(localStorage.getItem(FORGOT_KEY) || '[]')); } catch (e) {}
+function saveForgotten() { try { localStorage.setItem(FORGOT_KEY, JSON.stringify([...forgottenIds])); } catch (e) {} }
 
 function isAnyDeviceConnecting() {
   return autoConnecting || Object.values(sessions).some(s => s.reconnecting);
@@ -1362,19 +1367,29 @@ async function tryAutoConnectRemembered(fromUserTap = false) {
   autoConnecting = true;
   const statusEl = document.getElementById('live-status-text');
   try {
-    const devices = await navigator.bluetooth.getDevices();
+    const devices = await withTimeout(navigator.bluetooth.getDevices(), 5000, 'getDevices');
     if (!devices || devices.length === 0) return;
 
-    if (statusEl) statusEl.textContent = 'З’ЄДНАННЯ...';
+    const todo = devices.filter(dev => {
+      const ex = sessions[dev.id];
+      if (ex && (ex.connected || ex.reconnecting)) return false;
+      if (!fromUserTap && (forgottenIds.has(dev.id) || (ex && ex.manualClose))) return false;
+      // Already have a live handle — the 5 s loop takes care of it
+      if (ex && ex.device && !fromUserTap) return false;
+      return true;
+    });
+    if (todo.length === 0) return;
+    if (statusEl) statusEl.textContent = 'ПОШУК АКБ…';
 
-    for (const dev of devices) {
-      const existing = sessions[dev.id];
-      if (existing && existing.connected) continue;
-      if (existing && existing.manualClose && !fromUserTap) continue;
-      if (existing) existing.manualClose = false;
-
+    for (const dev of todo) {
+      if (fromUserTap) { forgottenIds.delete(dev.id); saveForgotten(); }
+      if (sessions[dev.id]) sessions[dev.id].manualClose = false;
+      // Chrome needs an advertisement before connecting to a remembered device
+      if (typeof dev.watchAdvertisements === 'function' && !dev.watchingAdvertisements) {
+        try { await withTimeout(dev.watchAdvertisements(), 1500, 'watchAdv'); } catch (e) {}
+      }
       await setupDeviceSession(dev);
-      await sleep(900);
+      await sleep(600);
     }
   } catch (e) {
   } finally {
@@ -1498,6 +1513,7 @@ function detectConnectModeByBrand(brand) {
 
 async function setupDeviceSession(device) {
   const prev = sessions[device.id];
+  if (forgottenIds.delete(device.id)) saveForgotten();  // picked again by the user
 
   // Remove any stale cached entry of same name or brand if ID changed
   for (const [k, v] of Object.entries(sessions)) {
@@ -1625,11 +1641,11 @@ async function connectAndInit(session) {
         session.error = null;
         session.polling = false;
 
-        session.server = await session.device.gatt.connect();
+        session.server = await withTimeout(session.device.gatt.connect(), 12000, 'connect');
         await sleep(250);
-        await resolveServiceAndChars(session);
+        await withTimeout(resolveServiceAndChars(session), 8000, 'services');
 
-        await session.rxChar.startNotifications();
+        await withTimeout(session.rxChar.startNotifications(), 5000, 'notify');
         if (session.rxHandler) {
           try { session.rxChar.removeEventListener('characteristicvaluechanged', session.rxHandler); } catch (e) {}
         }
@@ -1651,6 +1667,7 @@ async function connectAndInit(session) {
         return true;
       } catch (innerErr) {
         session.connected = false;
+        try { if (session.device.gatt.connected) session.device.gatt.disconnect(); } catch (e) {}
         if (attempt < 2) {
           await sleep(700);
         }
@@ -1918,6 +1935,8 @@ function disconnectDevice(id) {
   const s = sessions[id];
   if (!s) return;
   s.manualClose = true;
+  forgottenIds.add(id);
+  saveForgotten();
   try {
     if (s.device && s.device.gatt && s.device.gatt.connected) {
       s.device.gatt.disconnect();
@@ -1933,6 +1952,15 @@ document.addEventListener('visibilitychange', () => {
     tryAutoConnectRemembered(false);
   }
 });
+
+// Saved batteries without a live handle (fresh page load, Bluetooth was off, out of range):
+// keep asking Bluefy/Chrome for the remembered devices instead of trying only once on load.
+setInterval(() => {
+  if (isAnyDeviceConnecting()) return;
+  const missing = Object.values(sessions).some(s => !s.device && !s.manualClose);
+  const none = Object.keys(sessions).length === 0;
+  if (missing || none) tryAutoConnectRemembered(false);
+}, 8000);
 
 // Background auto-reconnect every 5 seconds for remembered devices that have a live handle
 setInterval(() => {
@@ -2261,6 +2289,7 @@ function renderTopology(list) {
           <div class="bus-sub">${stringBComplete ? 'Обидві пари' : '1 пара в роботі'}</div>
         </div>
       </div>
+      ${invMoreHtml}
     </div>
 
     <!-- PARALLEL STRINGS A & B -->
@@ -2456,10 +2485,6 @@ async function invReadSettings() {
 }
 
 // ---------- UI ----------
-function invButton() {
-  if (inv.cfg && inv.cfg.dev) { invPoll(true); return; }
-  invOpenModal();
-}
 function invOpenModal() {
   document.getElementById('inv-usr').value = (inv.cfg && inv.cfg.usr) || '';
   document.getElementById('inv-pwd').value = '';
@@ -2502,89 +2527,86 @@ function invAgeText(ts) {
 }
 
 function renderInverterBlock(bmsBusV) {
-  const sub = document.getElementById('btn-inverter-sub');
-  const btn = document.getElementById('btn-inverter');
-  if (btn) btn.classList.toggle('connected', Boolean(inv.data && !inv.error));
-  if (sub) sub.textContent = inv.data ? (inv.data.mode || 'SmartESS') : 'SmartESS';
-
+  invMoreHtml = '';
   if (!inv.cfg || !inv.cfg.dev) {
-    return `<div class="inv-setup" onclick="invOpenModal()">☀️ Підключіть інвертор: <b>увійти через SmartESS</b> • сонце, мережа, дім і налаштування заряду</div>`;
+    return `<div class="inv-line"><span>Інвертор не підключено</span><span class="link" onclick="invOpenModal()">Увійти в SmartESS →</span></div>`;
   }
   const d = inv.data;
   if (!d) {
-    return `<div class="inv-setup" onclick="invPoll(true)">${inv.error ? '⚠️ ' + inv.error + ' • <b>повторити</b>' : '⏳ Завантаження даних інвертора…'}</div>`;
+    return `<div class="inv-line"><span>${inv.error ? '⚠️ ' + inv.error : 'Інвертор: завантаження…'}</span><span class="link" onclick="invPoll(true)">Оновити</span></div>`;
   }
 
-  const f0 = (v, u) => (v === null || v === undefined) ? '—' : `${Math.round(v)} ${u}`;
+  const w = v => (v === null || v === undefined) ? '—' : `${Math.round(v)} W`;
   const batW = (d.batV !== null && d.batA !== null) ? d.batV * d.batA : null;
-  const batCls = d.batA > 0.2 ? 'on-chg' : (d.batA < -0.2 ? 'on-dis' : '');
   const gridOn = d.gridV && d.gridV > 100;
-  const loadShow = (d.loadW !== null && d.loadW > 0) ? f0(d.loadW, 'W') : f0(d.loadVA, 'VA');
+  const loadVal = (d.loadW !== null && d.loadW > 0) ? w(d.loadW) : (d.loadVA !== null ? `${Math.round(d.loadVA)} VA` : '—');
 
-  // Inverter vs BMS voltage cross-check (cables, fuses, shunt)
-  let crossChip = '';
+  const flow = `
+    <div class="flow-bar">
+      <div class="flow-item ${d.pvW > 5 ? 'sun' : ''}">
+        <div class="bus-label">☀️ Сонце</div>
+        <div class="bus-val">${w(d.pvW)}</div>
+        <div class="bus-sub">${d.pvV !== null ? d.pvV.toFixed(0) + ' V' : ''}</div>
+      </div>
+      <div class="flow-item ${gridOn ? 'grid' : ''}">
+        <div class="bus-label">🔌 Мережа</div>
+        <div class="bus-val">${gridOn ? Math.round(d.gridV) + ' V' : 'Немає'}</div>
+        <div class="bus-sub">${gridOn ? (d.gridHz ? d.gridHz.toFixed(1) + ' Hz' : '') : 'автономно'}</div>
+      </div>
+      <div class="flow-item ${d.loadVA > 20 ? 'load' : ''}">
+        <div class="bus-label">🏠 Дім</div>
+        <div class="bus-val">${loadVal}</div>
+        <div class="bus-sub">${d.loadPct !== null ? d.loadPct + '%' : ''}</div>
+      </div>
+      <div class="flow-item ${d.batA > 0.2 ? 'chg' : (d.batA < -0.2 ? 'dis' : '')}">
+        <div class="bus-label">🔋 АКБ</div>
+        <div class="bus-val">${batW !== null ? (batW > 0 ? '+' : '') + Math.round(batW) + ' W' : '—'}</div>
+        <div class="bus-sub">${d.batV !== null ? d.batV.toFixed(1) + ' V' : ''}</div>
+      </div>
+    </div>`;
+
+  let dvTxt = '';
   if (d.batV && bmsBusV) {
     const dv = d.batV - bmsBusV;
-    const cls = Math.abs(dv) <= 0.3 ? 'ok' : (Math.abs(dv) <= 0.6 ? 'warn' : 'bad');
-    crossChip = `<span class="inv-chip ${cls}" title="Напруга АКБ очима інвертора проти суми напруг BMS">Інв ${d.batV.toFixed(1)} V • BMS ${bmsBusV.toFixed(2)} V • Δ ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V</span>`;
+    const cls = Math.abs(dv) <= 0.3 ? 'dv-ok' : (Math.abs(dv) <= 0.6 ? 'dv-warn' : 'dv-bad');
+    dvTxt = ` • <span class="${cls}" title="Напруга АКБ: інвертор мінус BMS">Δ інв/BMS ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V</span>`;
   }
+  const line = `
+    <div class="inv-line">
+      <span><b>${d.mode || 'Інвертор'}</b>${d.tInv !== null ? ' • ' + d.tInv + '°C' : ''}${dvTxt}</span>
+      <span>${inv.error ? '⚠️' : invAgeText(d.ts)}</span>
+    </div>`;
 
-  // Charge settings + balancing hint (24V LiFePO4 = 8S)
-  let settingsHtml = '';
+  let settings = '';
   const s = inv.settings;
   if (s) {
     const bulk = invNum(s.bat_maximum_charging_voltage);
     const flt = invNum(s.bat_floating_charge_voltage);
     const cv = invNum(s.bat_constant_pressure_floating_charge_waiting_time);
-    const perCell = v => v ? ` <span style="color:var(--muted);font-weight:600">(${(v / 8).toFixed(3)} V/ком.)</span>` : '';
-    let hint = '';
-    if (bulk) {
-      hint = bulk < 27.6
-        ? `<div class="inv-hint warn">⚖️ Bulk ${bulk.toFixed(1)} V = ${(bulk / 8).toFixed(3)} V/комірку. Це ледь вище порогу балансира BMS (3.40 V), а у фазі C.V струм швидко падає нижче 2.5 A, тож балансир майже не встигає працювати. Для балансування краще Bulk 27.6–28.0 V (3.45–3.50 V/комірку) з витримкою C.V ${cv || 60} хв.</div>`
-        : `<div class="inv-hint ok">⚖️ Bulk ${bulk.toFixed(1)} V (${(bulk / 8).toFixed(3)} V/комірку): комірки проходять поріг балансира 3.40 V із запасом.</div>`;
-    }
-    settingsHtml = `
-      <div class="inv-settings">
-        <div class="row"><span>Bulk (C.V)</span><b>${bulk ? bulk.toFixed(1) + ' V' : '—'}${perCell(bulk)}</b></div>
-        <div class="row"><span>Float</span><b>${flt ? flt.toFixed(1) + ' V' : '—'}${perCell(flt)}</b></div>
+    const pc = v => v ? ` <i>${(v / 8).toFixed(3)}/ком.</i>` : '';
+    settings = `
+      <div class="inv-kv">
+        <div class="row"><span>Bulk (C.V)</span><b>${bulk ? bulk.toFixed(1) + ' V' : '—'}${pc(bulk)}</b></div>
+        <div class="row"><span>Float</span><b>${flt ? flt.toFixed(1) + ' V' : '—'}${pc(flt)}</b></div>
         <div class="row"><span>C.V → Float</span><b>${cv !== null ? cv + ' хв' : '—'}</b></div>
         <div class="row"><span>Макс. струм заряду</span><b>${s.bat_maximum_charging_current ? s.bat_maximum_charging_current + ' A' : '—'}</b></div>
         <div class="row"><span>Пріоритет заряду</span><b>${s.bat_main_charging_priority || '—'}</b></div>
-        ${hint}
-      </div>`;
+      </div>
+      <div class="inv-note">⚖️ Якщо комірка вгорі тікає до 3.60+ V і BMS рве заряд — Bulk не піднімати, а зменшити макс. струм заряду.</div>`;
   }
+  const raw = `<div class="inv-kv">${d.raw.map(([k, v, u]) => `<div class="row"><span>${k}</span><b>${v}${u ? ' ' + u : ''}</b></div>`).join('')}</div>`;
 
-  const rawHtml = `<details class="inv-raw"><summary>Усі параметри інвертора (${d.raw.length})</summary>
-    <div class="inv-settings">${d.raw.map(([k, v, u]) => `<div class="row"><span>${k}</span><b>${v}${u ? ' ' + u : ''}</b></div>`).join('')}</div></details>`;
-
-  return `
-    <div class="flow-grid">
-      <div class="flow-tile ${d.pvW > 5 ? 'on-sun' : ''}">
-        <div class="ft-ico">☀️</div><div class="ft-lbl">Сонце</div>
-        <div class="ft-val">${f0(d.pvW, 'W')}</div><div class="ft-sub">${d.pvV !== null ? d.pvV.toFixed(1) + ' V' : ''}</div>
-      </div>
-      <div class="flow-tile ${gridOn ? 'on-grid' : ''}">
-        <div class="ft-ico">🔌</div><div class="ft-lbl">Мережа</div>
-        <div class="ft-val">${gridOn ? d.gridV.toFixed(0) + ' V' : 'Немає'}</div><div class="ft-sub">${gridOn && d.gridHz ? d.gridHz.toFixed(1) + ' Hz' : 'Автономно'}</div>
-      </div>
-      <div class="flow-tile ${d.loadVA > 20 ? 'on-load' : ''}">
-        <div class="ft-ico">🏠</div><div class="ft-lbl">Дім</div>
-        <div class="ft-val">${loadShow}</div><div class="ft-sub">${d.loadPct !== null ? d.loadPct + '% навантаж.' : ''}</div>
-      </div>
-      <div class="flow-tile ${batCls}">
-        <div class="ft-ico">🔋</div><div class="ft-lbl">АКБ</div>
-        <div class="ft-val">${batW !== null ? (batW > 0 ? '+' : '') + Math.round(batW) + ' W' : '—'}</div><div class="ft-sub">${d.batA !== null ? (d.batA > 0 ? '+' : '') + d.batA.toFixed(1) + ' A' : ''}</div>
-      </div>
-    </div>
-    <div class="inv-cloud-row">
-      <span>⚙️ <b>${d.mode || '—'}</b>${d.tInv !== null ? ' • 🌡 ' + d.tInv + '°C' : ''} • ${invAgeText(d.ts)}${inv.error ? ' • ⚠️ ' + inv.error : ''}</span>
-      ${crossChip}
-      <span class="inv-chip" onclick="invOpenModal()" title="Акаунт SmartESS">👤</span>
-    </div>
-    ${settingsHtml}
-    ${rawHtml}
-  `;
+  invMoreHtml = `
+    <details class="inv-more" ${invMoreOpen ? 'open' : ''} ontoggle="invMoreOpen=this.open">
+      <summary>Інвертор: налаштування і всі параметри ▾</summary>
+      ${settings}
+      ${raw}
+      <div class="inv-line" style="margin:10px 2px 0"><span>${inv.cfg.dev.alias || inv.cfg.dev.pn}</span><span class="link" onclick="invOpenModal()">Акаунт</span></div>
+    </details>`;
+  return flow + line;
 }
+let invMoreOpen = false;
+let invMoreHtml = '';
 
 setInterval(() => invPoll(false), 15000);
 setTimeout(() => invPoll(true), 1200);
