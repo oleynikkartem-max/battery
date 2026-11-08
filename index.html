@@ -1050,6 +1050,18 @@
       box-shadow: 0 0 14px rgba(6, 182, 212, 0.15);
     }
 
+    .cell-item.is-dropping {
+      border-color: rgba(244, 63, 94, 0.7);
+      background: rgba(244, 63, 94, 0.12);
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.25);
+    }
+
+    .cell-tag.dropping {
+      background: rgba(244, 63, 94, 0.3);
+      color: #fca5a5;
+      border: 1px solid rgba(244, 63, 94, 0.55);
+    }
+
     .cell-top {
       display: flex;
       justify-content: space-between;
@@ -2255,10 +2267,9 @@ function updateTopHighlights(list) {
   renderTopology(list);
 }
 
-// ===== History log (Δ, balancer, current) persisted in localStorage =====
+// ===== History log (Δ, balancer, current, cells) persisted in localStorage =====
 const HIST_KEY = 'bms_studio_hist_v1';
-const HIST_MAX = 3000;       // ~25h at 30s
-const HIST_STEP_MS = 30000;
+const HIST_MAX = 4000;       // ~6-10 hours of active 5s logging
 let histStore = {};
 try { histStore = JSON.parse(localStorage.getItem(HIST_KEY) || '{}') || {}; } catch (e) { histStore = {}; }
 
@@ -2271,11 +2282,35 @@ function recordHistory() {
     if (!s.connected || !s.data || !s.data.cells || s.data.cells.length === 0) continue;
     const k = histKey(s);
     const arr = histStore[k] || (histStore[k] = []);
-    if (arr.length && now - arr[arr.length - 1][0] < HIST_STEP_MS - 1000) continue;
+    const cur = s.data.current || 0;
+
+    // Fast sampling: every 5s during active discharge (cur < -0.2A) or charge (cur > 0.2A)
+    // Slower sampling: every 20s when idle
+    const isUnderLoad = Math.abs(cur) >= 0.2;
+    const reqInterval = isUnderLoad ? 5000 : 20000;
+    if (arr.length && now - arr[arr.length - 1][0] < reqInterval - 600) continue;
+
     const c = s.data.cells;
-    const delta = Math.round((Math.max(...c) - Math.min(...c)) * 1000);
-    arr.push([now, +(s.data.voltage || 0).toFixed(2), +(s.data.current || 0).toFixed(2),
-              delta, s.data.balMask ? 1 : 0, +Math.max(...c).toFixed(3), +Math.min(...c).toFixed(3)]);
+    const minVal = Math.min(...c);
+    const maxVal = Math.max(...c);
+    const minIdx = c.indexOf(minVal);
+    const maxIdx = c.indexOf(maxVal);
+    const delta = Math.round((maxVal - minVal) * 1000);
+    const cellsCopy = c.map(v => +v.toFixed(3));
+
+    // Format: [ts, V, I, delta_mV, balActive, maxV, minV, minCellNum(1-based), maxCellNum(1-based), cellsCopy]
+    arr.push([
+      now,
+      +(s.data.voltage || 0).toFixed(2),
+      +cur.toFixed(2),
+      delta,
+      s.data.balMask ? 1 : 0,
+      +maxVal.toFixed(3),
+      +minVal.toFixed(3),
+      minIdx + 1,
+      maxIdx + 1,
+      cellsCopy
+    ]);
     if (arr.length > HIST_MAX) arr.splice(0, arr.length - HIST_MAX);
     changed = true;
   }
@@ -2283,17 +2318,17 @@ function recordHistory() {
     try { localStorage.setItem(HIST_KEY, JSON.stringify(histStore)); } catch (e) {}
   }
 }
-setInterval(recordHistory, 10000);
+setInterval(recordHistory, 2500);
 
 function fmtClock(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function renderHistoryPanel(s) {
   const arr = histStore[histKey(s)] || [];
   if (arr.length < 2) {
-    return `<div class="cells-panel"><div class="cells-title">📈 Журнал Δ</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px;">Збирається кожні 30 с, поки сторінка відкрита й батарея підключена.</div></div>`;
+    return `<div class="cells-panel"><div class="cells-title">📈 Журнал Δ та аналіз комірок</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;">Запис: кожні 5 с під навантаженням (20 с у спокої), поки Bluefy відкрито.</div></div>`;
   }
   const W = 300, H = 64;
   const t0 = arr[0][0], t1 = arr[arr.length - 1][0];
@@ -2302,6 +2337,7 @@ function renderHistoryPanel(s) {
   const x = r => ((r[0] - t0) / span * W).toFixed(1);
   const y = r => (H - 4 - (r[3] / maxD) * (H - 8)).toFixed(1);
   const pts = arr.map(r => `${x(r)},${y(r)}`).join(' ');
+
   // balancer ON bands
   let bands = '';
   for (let i = 0; i < arr.length - 1; i++) {
@@ -2315,25 +2351,68 @@ function renderHistoryPanel(s) {
   const minD = Math.min(...arr.map(r => r[3]));
   const last = arr[arr.length - 1];
   const peakCell = Math.max(...arr.map(r => r[5]));
+  const lowestCell = Math.min(...arr.map(r => r[6]));
   const chgMax = Math.max(...arr.map(r => r[2]));
+  const dsgMax = Math.min(...arr.map(r => r[2]));
+
+  // Discharge analysis: detect which cell is consistently lowest under load
+  const dsgPoints = arr.filter(r => r[2] < -0.2 && r[7]);
+  let dropAnalysisHtml = '';
+  if (dsgPoints.length >= 3) {
+    const counts = {};
+    dsgPoints.forEach(r => { counts[r[7]] = (counts[r[7]] || 0) + 1; });
+    const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+    const topCell = sorted[0][0];
+    const topPct = Math.round((sorted[0][1] / dsgPoints.length) * 100);
+
+    let conclusion = '';
+    if (topCell === '2') {
+      conclusion = '⚠️ <b>Комірка #2 падає першою:</b> вона швидше віддає заряд, це ознака <u>меншої ємності #2</u> (Варіант Б). Балансир не додасть їй ємності.';
+    } else {
+      conclusion = `✅ <b>Комірка #${topCell} падає першою</b> (а #2 тримається): це <u>розбаланс заряду</u> (Варіант А). Активний балансир 4S вирівняє їх і поверне втрачені 5–15 Ah!`;
+    }
+
+    dropAnalysisHtml = `
+      <div style="background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.35);border-radius:12px;padding:9px 11px;margin-top:8px;font-size:11px;color:#fecdd3;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <span>📉 <b>Аналіз розряду (${dsgPoints.length} точок):</b></span>
+          <span style="font-weight:800;color:#fca5a5;">Перша просідає: Комірка #${topCell} (${topPct}%)</span>
+        </div>
+        <div style="color:#f8fafc;line-height:1.4;">${conclusion}</div>
+      </div>
+    `;
+  }
+
+  const lastMinCellNum = last[7] ? `Комірка #${last[7]}` : 'мін';
+  const lastMaxCellNum = last[8] ? `Комірка #${last[8]}` : 'макс';
+
   return `
     <div class="cells-panel">
       <div class="cells-header">
         <span class="cells-title">📈 Журнал Δ • ${fmtClock(t0)}–${fmtClock(t1)}</span>
         <span class="delta-badge ${last[3] <= 30 ? 'good' : (last[3] <= 80 ? 'mid' : 'high')}">зараз ${last[3]} mV</span>
       </div>
+
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:64px;display:block;background:rgba(255,255,255,0.03);border-radius:10px;">
         ${bands}
         <polyline points="${pts}" fill="none" stroke="#f59e0b" stroke-width="1.6"/>
       </svg>
+
       <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:6px;gap:6px;flex-wrap:wrap;">
         <span>Δ мін: <b style="color:#e2e8f0">${minD}</b> • макс: <b style="color:#e2e8f0">${maxD}</b> mV</span>
-        <span>⚖️ Баланс: <b style="color:#22d3ee">${Math.round(balMs / 60000)} хв</b> <span style="opacity:.7">(блакитні смуги)</span></span>
-        <span>Пік комірки: <b style="color:#e2e8f0">${peakCell.toFixed(3)} V</b></span>
-        <span>Макс. заряд: <b style="color:#e2e8f0">${chgMax.toFixed(1)} A</b></span>
+        <span>⚖️ Баланс: <b style="color:#22d3ee">${Math.round(balMs / 60000)} хв</b></span>
+        <span>Мінімум: <b style="color:#fca5a5">${lowestCell.toFixed(3)} V</b></span>
+        <span>Пік: <b style="color:#34d399">${peakCell.toFixed(3)} V</b></span>
       </div>
+
+      <div style="font-size:10.5px;color:#cbd5e1;margin-top:4px;">
+        <span>Зараз внизу: <b style="color:#fca5a5">${lastMinCellNum}</b> (${last[6].toFixed(3)} V) • вгорі: <b style="color:#34d399">${lastMaxCellNum}</b> (${last[5].toFixed(3)} V)</span>
+      </div>
+
+      ${dropAnalysisHtml}
+
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="icon-btn" style="width:auto;padding:0 10px;font-size:11px;" onclick="copyHistory('${s.id}')">📋 Копіювати CSV</button>
+        <button class="icon-btn" style="width:auto;padding:0 10px;font-size:11px;" onclick="copyHistory('${s.id}')">📋 Копіювати CSV (${arr.length})</button>
         <button class="icon-btn" style="width:auto;padding:0 10px;font-size:11px;" onclick="clearHistory('${s.id}')">🗑 Очистити</button>
       </div>
     </div>`;
@@ -2343,10 +2422,29 @@ function copyHistory(id) {
   const s = sessions[id];
   if (!s) return;
   const arr = histStore[histKey(s)] || [];
-  const csv = 'time,V,I,delta_mV,balancing,maxCell,minCell\n' + arr.map(r =>
-    [new Date(r[0]).toISOString(), r[1], r[2], r[3], r[4], r[5], r[6]].join(',')).join('\n');
+  const maxCells = arr.reduce((m, r) => Math.max(m, (r[9] && r[9].length) || 0), 4);
+  const cellHeaders = Array.from({length: maxCells}, (_, i) => `c${i+1}`).join(',');
+  const header = `time,V,I,delta_mV,balancing,maxCell,minCell,minCellNum,maxCellNum,${cellHeaders}\n`;
+  const rows = arr.map(r => {
+    const cellsPart = (r[9] && r[9].length)
+      ? r[9].join(',')
+      : (r[6] !== undefined && r[5] !== undefined ? `${r[6]},${r[5]}` : '');
+    return [
+      new Date(r[0]).toISOString(),
+      r[1],
+      r[2],
+      r[3],
+      r[4],
+      r[5],
+      r[6],
+      r[7] || '',
+      r[8] || '',
+      cellsPart
+    ].join(',');
+  }).join('\n');
+  const csv = header + rows;
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(csv).then(() => alert('Скопійовано ' + arr.length + ' рядків'),
+    navigator.clipboard.writeText(csv).then(() => alert('Скопійовано ' + arr.length + ' рядків CSV з напругами всіх комірок'),
       () => prompt('Скопіюйте вручну:', csv.slice(-4000)));
   } else {
     prompt('Скопіюйте вручну:', csv.slice(-4000));
@@ -2440,10 +2538,34 @@ function renderCards() {
       const isBal = Boolean(d.balMask && (d.balMask & (1 << idx)));
       const isMin = !isBal && idx === minIdx && deltaMv > 2;
       const isMax = !isBal && idx === maxIdx && deltaMv > 2;
-      const itemCls = isBal ? 'is-bal' : (isMin ? 'is-min' : (isMax ? 'is-max' : ''));
-      const tagHtml = isBal
-        ? `<span class="cell-tag bal">⚖️ BAL</span>`
-        : (isMin ? `<span class="cell-tag min">MIN</span>` : (isMax ? `<span class="cell-tag max">MAX</span>` : ''));
+      let itemCls = isBal ? 'is-bal' : '';
+      if (!isBal) {
+        if (isMin) {
+          itemCls = isDischarging ? 'is-dropping' : 'is-min';
+        } else if (isMax) {
+          itemCls = 'is-max';
+        }
+      }
+
+      let tagHtml = '';
+      if (isBal) {
+        tagHtml = `<span class="cell-tag bal">⚖️ BAL</span>`;
+      } else if (isMin) {
+        if (isDischarging) {
+          tagHtml = `<span class="cell-tag dropping">🔻 ПРОСІДАЄ (#${idx + 1})</span>`;
+        } else {
+          tagHtml = `<span class="cell-tag min">MIN</span>`;
+        }
+      } else if (isMax) {
+        if (isDischarging) {
+          tagHtml = `<span class="cell-tag max" style="color:#34d399;background:rgba(16,185,129,0.18);">▲ ТРИМАЄТЬСЯ</span>`;
+        } else {
+          tagHtml = `<span class="cell-tag max">MAX</span>`;
+        }
+      }
+      if (cv <= 3.10) {
+        tagHtml += ` <span class="cell-tag dropping" style="background:#dc2626;color:#fff;margin-left:3px;">⚠️ <3.1V</span>`;
+      }
 
       const pct = Math.max(6, Math.min(100, ((cv - 3.0) / 0.65) * 100));
 
@@ -2451,7 +2573,7 @@ function renderCards() {
         <div class="cell-item ${itemCls}">
           <div class="cell-top">
             <span class="cell-idx">Комірка #${idx + 1}</span>
-            ${tagHtml}
+            <div>${tagHtml}</div>
           </div>
           <div class="cell-volt">${cv.toFixed(3)} V</div>
           <div class="cell-bar">
@@ -2542,7 +2664,10 @@ function renderCards() {
         ${cells.length > 0 ? `
           <div class="cells-panel">
             <div class="cells-header">
-              <span class="cells-title">Комірки (${cells.length}S) • ${minV.toFixed(3)}–${maxV.toFixed(3)}V</span>
+              <span class="cells-title">
+                Комірки (${cells.length}S) • ${minV.toFixed(3)}–${maxV.toFixed(3)}V
+                ${(isDischarging && minV <= 3.15) ? '<span class="cell-tag dropping" style="margin-left:4px;">⚠️ ЗОНА ТЕСТУ (<3.15V)</span>' : ''}
+              </span>
               <span class="delta-badge ${deltaClass}">Δ ${deltaMv} mV</span>
             </div>
             <div class="cells-grid">
