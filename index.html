@@ -2236,6 +2236,42 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
 const ETA_DEFAULTS = { offSoc: 15, gridSoc: 20, offV: 25.0, gridV: 26.0, maxChgA: 30, cvMin: 60 };
 const etaState = { ema: null, t: 0, sign: 0 };
 
+// LiFePO4 resting voltage per cell vs SOC (typical curve), 24V bus = 8 cells
+const LFP_OCV = [[0, 2.90], [5, 3.10], [10, 3.18], [15, 3.21], [20, 3.24], [30, 3.26], [40, 3.28],
+                 [50, 3.29], [60, 3.30], [70, 3.31], [80, 3.32], [90, 3.33], [95, 3.34], [100, 3.36]];
+function socForCellOcv(v) {
+  if (v <= LFP_OCV[0][1]) return 0;
+  for (let i = 1; i < LFP_OCV.length; i++) {
+    const [s0, v0] = LFP_OCV[i - 1], [s1, v1] = LFP_OCV[i];
+    if (v <= v1) return s0 + (s1 - s0) * (v - v0) / (v1 - v0);
+  }
+  return 100;
+}
+
+// Bus internal resistance (cells + BMS + links), learned from current steps:
+// V = OCV + I·R  ⇒  R = ΔV/ΔI. Your log: 26.62 V @ −4 A → 25.78 V @ −65 A ⇒ ≈ 14 mΩ.
+const R_KEY = 'bms_studio_bus_r_v1';
+let busR = 0.016;
+try { const r = parseFloat(localStorage.getItem(R_KEY)); if (r > 0.004 && r < 0.08) busR = r; } catch (e) {}
+let rPrev = null;
+function etaLearnR(V, I) {
+  const now = Date.now();
+  if (V && rPrev && now - rPrev.t < 15000 && Math.abs(I - rPrev.I) > 8) {
+    const r = (V - rPrev.V) / (I - rPrev.I);
+    if (r > 0.004 && r < 0.08) {
+      busR += (r - busR) * 0.3;
+      try { localStorage.setItem(R_KEY, busR.toFixed(4)); } catch (e) {}
+    }
+  }
+  if (V) rPrev = { V, I, t: now };
+}
+
+// SOC at which the LOADED bus voltage reaches the inverter's cut-off
+function socAtVoltageCut(cutV, Idis) {
+  const ocvBus = cutV + Math.abs(Idis) * busR;
+  return socForCellOcv(ocvBus / 8);
+}
+
 // Loads jump around (kettle, fridge compressor): average the bus current over ~3 min.
 // Reset on charge <-> discharge flip so the estimate reacts at once.
 function etaSmooth(I) {
@@ -2288,12 +2324,16 @@ function computeSystemEta(strings, I, V) {
 
   // ---- Discharging ----
   if (Iavg < -0.3) {
-    const floor = gridOn ? P.gridSoc : P.offSoc;
+    const socFloor = gridOn ? P.gridSoc : P.offSoc;
+    const cutV = gridOn ? P.gridV : P.offV;
+    const vFloor = socAtVoltageCut(cutV, Iavg);
+    const byVoltage = vFloor > socFloor + 0.5;
+    const floor = Math.max(socFloor, vFloor);
     const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - floor / 100 * x.nom), 0);
     const hrs = usable / Math.abs(Iavg);
-    // Voltage under heavy load sags well below the inverter's V threshold (seen 24.7 V at 62 A)
-    // without a shutdown, so this inverter cuts off by SOC: no voltage-based estimate here.
-    const sub = `при ~${Math.round(Math.abs(Iavg) * Vb)} W (середнє за ~3 хв) • до ${floor}% SOC (${src})`;
+    const sub = `при ~${Math.round(Math.abs(Iavg) * Vb)} W (середнє за ~3 хв) • ` + (byVoltage
+      ? `до ~${Math.round(floor)}%: під навантаженням напруга впаде до ${cutV} V раніше, ніж SOC до ${socFloor}%`
+      : `до ${socFloor}% SOC (${src})`);
     return {
       cls: 'discharging',
       label: gridOn ? '⏱ До переходу на мережу:' : '⏱ До відключення інвертора:',
@@ -2324,13 +2364,14 @@ function computeSystemEta(strings, I, V) {
   if (d && (d.loadVA !== null || d.loadW !== null)) {
     const loadW = Math.max(d.loadW || 0, (d.loadVA || 0) * 0.7);
     const drawW = loadW / 0.92 + 40;   // inverter efficiency + ~40 W own consumption
-    const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - P.offSoc / 100 * x.nom), 0);
+    const floorIdle = Math.max(P.offSoc, socAtVoltageCut(P.offV, drawW / Vb));
+    const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - floorIdle / 100 * x.nom), 0);
     const hrs = (usable * Vb) / drawW;
     return {
       cls: '',
       label: gridOn ? '🔋 Якщо зникне мережа:' : '⏱ Час роботи:',
       value: `~${formatHoursMinutes(hrs)}`,
-      sub: `навантаження ~${Math.round(loadW)} W + інвертор • до ${P.offSoc}% SOC`
+      sub: `навантаження ~${Math.round(loadW)} W + інвертор • до ${Math.round(floorIdle)}% SOC`
     };
   }
   const hrs300 = (Math.max(0, remAll - P.offSoc / 100 * nomAll) * Vb) / 300;
@@ -2473,6 +2514,7 @@ function renderTopology(list) {
   if (!etaStrings.length && inv.data && inv.data.batSoc !== null && inv.data.batSoc !== undefined) {
     etaStrings.push({ nom: 100, remMin: inv.data.batSoc, remMax: inv.data.batSoc });  // inverter SOC fallback
   }
+  if (stringAComplete && sandi.data.current !== undefined) etaLearnR(stringAVolt, stringACurrent);
   const eta = anyActive || etaStrings.length
     ? computeSystemEta(etaStrings, totalCurrent, busVoltNum)
     : { cls: '', label: '⏱ Час роботи при поточному навантаженні:', value: '—', sub: '' };
