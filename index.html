@@ -1309,6 +1309,42 @@ function isAnyDeviceConnecting() {
   return autoConnecting || Object.values(sessions).some(s => s.reconnecting);
 }
 
+// ---- BLE diagnostics log (shown at the bottom of the "Детально" tab) ----
+const bleLogLines = [];
+let bleLogOpen = false;
+function bleLog(msg) {
+  const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const line = `${t} ${msg}`;
+  if (bleLogLines[0] && bleLogLines[0].slice(9) === msg) return;  // collapse repeats
+  bleLogLines.unshift(line);
+  if (bleLogLines.length > 60) bleLogLines.pop();
+}
+function devLabel(d) { return `${d.name || '?'} [${String(d.id || '').slice(0, 6)}]`; }
+function renderBleLog() {
+  const saved = Object.values(sessions).map(s =>
+    `${devLabel(s)}: ${s.connected ? '🟢' : (s.reconnecting ? '⏳' : '🔴')} ${s.device ? 'handle' : 'НЕМАЄ handle'}${s.failCount ? ' • невдач ' + s.failCount : ''}`
+  );
+  const api = !navigator.bluetooth ? 'navigator.bluetooth відсутній'
+    : (typeof navigator.bluetooth.getDevices === 'function' ? 'getDevices ✓' : 'getDevices ✗ (браузер не підтримує)');
+  return `
+    <details class="inv-more" style="margin-top:16px" ${bleLogOpen ? 'open' : ''} ontoggle="bleLogOpen=this.open">
+      <summary>🔧 Діагностика Bluetooth ▾</summary>
+      <div class="inv-kv">
+        <div class="row"><span>API</span><b>${api}</b></div>
+        ${saved.map(x => `<div class="row"><span style="white-space:normal">${x}</span></div>`).join('')}
+      </div>
+      <div class="inv-kv" style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;max-height:260px;overflow:auto">
+        ${bleLogLines.length ? bleLogLines.map(l => `<div style="padding:2px 0;border-bottom:1px solid var(--border)">${l.replace(/</g, '&lt;')}</div>`).join('') : '<div style="color:var(--muted)">поки порожньо</div>'}
+      </div>
+      <div class="inv-line" style="margin:8px 2px 0"><span></span><span class="link" onclick="copyBleLog()">Скопіювати журнал</span></div>
+    </details>`;
+}
+function copyBleLog() {
+  const txt = bleLogLines.slice().reverse().join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => alert('Скопійовано'), () => prompt('Скопіюйте:', txt));
+  else prompt('Скопіюйте:', txt);
+}
+
 function isAnyDeviceInitializing() {
   return Object.values(sessions).some(s => s.initializing);
 }
@@ -1381,6 +1417,7 @@ async function tryAutoConnectRemembered(fromUserTap = false) {
   const statusEl = document.getElementById('live-status-text');
   try {
     const devices = await withTimeout(navigator.bluetooth.getDevices(), 5000, 'getDevices');
+    bleLog(`getDevices → ${devices && devices.length ? devices.map(devLabel).join(', ') : 'порожньо'}`);
     if (!devices || devices.length === 0) return;
 
     const todo = devices.filter(dev => {
@@ -1405,6 +1442,7 @@ async function tryAutoConnectRemembered(fromUserTap = false) {
       await sleep(600);
     }
   } catch (e) {
+    bleLog('getDevices помилка: ' + (e && e.message || e));
   } finally {
     if (statusEl) statusEl.textContent = 'LIVE 2с';
     autoConnecting = false;
@@ -1505,8 +1543,11 @@ async function connectBattery(mode) {
     }
 
     const device = await navigator.bluetooth.requestDevice(options);
+    bleLog(`вибрано вручну (${mode}): ${devLabel(device)}`);
     await setupDeviceSession(device);
-  } catch (err) {}
+  } catch (err) {
+    bleLog(`вибір (${mode}) скасовано/помилка: ${err && err.message || err}`);
+  }
 }
 
 function detectBrandByName(name) {
@@ -1564,6 +1605,7 @@ async function setupDeviceSession(device) {
     device._hasDiscListener = true;
     device.addEventListener('gattserverdisconnected', () => {
       const s = sessions[device.id];
+      bleLog(`${devLabel(device)}: розʼєднано`);
       if (!s) return;
       s.connected = false;
       s.polling = false;
@@ -1654,6 +1696,7 @@ async function connectAndInit(session) {
         session.error = null;
         session.polling = false;
 
+        bleLog(`${devLabel(session)}: connect, спроба ${attempt}`);
         session.server = await withTimeout(session.device.gatt.connect(), 12000, 'connect');
         session.initializing = true;
         await sleep(250);
@@ -1678,11 +1721,13 @@ async function connectAndInit(session) {
         }
 
         session.initializing = false;
+        bleLog(`${devLabel(session)}: ✅ підключено (${session.type})`);
         session.failCount = 0;
         session.nextRetryAt = 0;
         await pollSession(session, true);
         return true;
       } catch (innerErr) {
+        bleLog(`${devLabel(session)}: ❌ ${innerErr && innerErr.message || innerErr}`);
         session.connected = false;
         session.initializing = false;
         try { if (session.device.gatt.connected) session.device.gatt.disconnect(); } catch (e) {}
@@ -2820,7 +2865,7 @@ function renderCards() {
         <div style="font-weight:700; color:#e2e8f0; margin-bottom:4px;">Немає підключених акумуляторів</div>
         <div>Натисніть на кнопку потрібного акумулятора зверху, щоб зчитати комірки та BMS</div>
       </div>
-    `;
+    ` + renderBleLog();
     return;
   }
 
@@ -2988,7 +3033,7 @@ function renderCards() {
         </div>
       </div>
     `;
-  }).join('');
+  }).join('') + renderBleLog();
 }
 
 // Initialize on load: restore cached devices & auto-connect via navigator.bluetooth.getDevices()
