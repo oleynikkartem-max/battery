@@ -1329,9 +1329,8 @@ async function handleVisualSlotClick(sessionId, connectMode) {
     return;
   }
   if (!s.connected) {
-    // Try reconnect WITHOUT fallback picker (avoids showing wrong devices in picker).
-    // If reconnect fails silently, user can tap the brand button at the top to pick manually.
-    await manualReconnect(sessionId, false);
+    // Reconnect via saved handle, falling back to the brand-filtered BLE picker
+    await manualReconnect(sessionId, true);
     return;
   }
   // Already connected — switch to Details tab and scroll to its card
