@@ -1050,18 +1050,6 @@
       box-shadow: 0 0 14px rgba(6, 182, 212, 0.15);
     }
 
-    .cell-item.is-dropping {
-      border-color: rgba(244, 63, 94, 0.7);
-      background: rgba(244, 63, 94, 0.12);
-      box-shadow: 0 0 12px rgba(244, 63, 94, 0.25);
-    }
-
-    .cell-tag.dropping {
-      background: rgba(244, 63, 94, 0.3);
-      color: #fca5a5;
-      border: 1px solid rgba(244, 63, 94, 0.55);
-    }
-
     .cell-top {
       display: flex;
       justify-content: space-between;
@@ -2355,61 +2343,9 @@ function renderHistoryPanel(s) {
   const chgMax = Math.max(...arr.map(r => r[2]));
   const dsgMax = Math.min(...arr.map(r => r[2]));
 
-  // Discharge analysis: detect which cell is consistently lowest under load
-  const dsgPoints = arr.filter(r => r[2] < -0.2 && r[7]);
-  let dropAnalysisHtml = '';
-  if (dsgPoints.length >= 3) {
-    const counts = {};
-    dsgPoints.forEach(r => { counts[r[7]] = (counts[r[7]] || 0) + 1; });
-    const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
-    const topCell = sorted[0][0];
-    const topPct = Math.round((sorted[0][1] / dsgPoints.length) * 100);
-
-    let conclusion = '';
-    if (topCell === '2') {
-      conclusion = '⚠️ <b>Комірка #2 падає першою:</b> вона швидше віддає заряд, це ознака <u>меншої ємності #2</u> (Варіант Б). Балансир не додасть їй ємності.';
-    } else {
-      conclusion = `✅ <b>Комірка #${topCell} падає першою</b> (а #2 тримається): це <u>розбаланс заряду</u> (Варіант А). Активний балансир 4S вирівняє їх і поверне втрачені 5–15 Ah!`;
-    }
-
-    dropAnalysisHtml = `
-      <div style="background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.35);border-radius:12px;padding:9px 11px;margin-top:8px;font-size:11px;color:#fecdd3;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-          <span>📉 <b>Аналіз розряду (${dsgPoints.length} точок):</b></span>
-          <span style="font-weight:800;color:#fca5a5;">Перша просідає: Комірка #${topCell} (${topPct}%)</span>
-        </div>
-        <div style="color:#f8fafc;line-height:1.4;">${conclusion}</div>
-      </div>
-    `;
-  }
-
-  const lastMinCellNum = last[7] ? `Комірка #${last[7]}` : 'мін';
-  const lastMaxCellNum = last[8] ? `Комірка #${last[8]}` : 'макс';
-
-  return `
-    <div class="cells-panel">
-      <div class="cells-header">
-        <span class="cells-title">📈 Журнал Δ • ${fmtClock(t0)}–${fmtClock(t1)}</span>
-        <span class="delta-badge ${last[3] <= 30 ? 'good' : (last[3] <= 80 ? 'mid' : 'high')}">зараз ${last[3]} mV</span>
-      </div>
-
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:64px;display:block;background:rgba(255,255,255,0.03);border-radius:10px;">
-        ${bands}
-        <polyline points="${pts}" fill="none" stroke="#f59e0b" stroke-width="1.6"/>
-      </svg>
-
-      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:6px;gap:6px;flex-wrap:wrap;">
-        <span>Δ мін: <b style="color:#e2e8f0">${minD}</b> • макс: <b style="color:#e2e8f0">${maxD}</b> mV</span>
-        <span>⚖️ Баланс: <b style="color:#22d3ee">${Math.round(balMs / 60000)} хв</b></span>
-        <span>Мінімум: <b style="color:#fca5a5">${lowestCell.toFixed(3)} V</b></span>
-        <span>Пік: <b style="color:#34d399">${peakCell.toFixed(3)} V</b></span>
-      </div>
-
       <div style="font-size:10.5px;color:#cbd5e1;margin-top:4px;">
         <span>Зараз внизу: <b style="color:#fca5a5">${lastMinCellNum}</b> (${last[6].toFixed(3)} V) • вгорі: <b style="color:#34d399">${lastMaxCellNum}</b> (${last[5].toFixed(3)} V)</span>
       </div>
-
-      ${dropAnalysisHtml}
 
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="icon-btn" style="width:auto;padding:0 10px;font-size:11px;" onclick="copyHistory('${s.id}')">📋 Копіювати CSV (${arr.length})</button>
@@ -2538,34 +2474,10 @@ function renderCards() {
       const isBal = Boolean(d.balMask && (d.balMask & (1 << idx)));
       const isMin = !isBal && idx === minIdx && deltaMv > 2;
       const isMax = !isBal && idx === maxIdx && deltaMv > 2;
-      let itemCls = isBal ? 'is-bal' : '';
-      if (!isBal) {
-        if (isMin) {
-          itemCls = isDischarging ? 'is-dropping' : 'is-min';
-        } else if (isMax) {
-          itemCls = 'is-max';
-        }
-      }
-
-      let tagHtml = '';
-      if (isBal) {
-        tagHtml = `<span class="cell-tag bal">⚖️ BAL</span>`;
-      } else if (isMin) {
-        if (isDischarging) {
-          tagHtml = `<span class="cell-tag dropping">🔻 ПРОСІДАЄ (#${idx + 1})</span>`;
-        } else {
-          tagHtml = `<span class="cell-tag min">MIN</span>`;
-        }
-      } else if (isMax) {
-        if (isDischarging) {
-          tagHtml = `<span class="cell-tag max" style="color:#34d399;background:rgba(16,185,129,0.18);">▲ ТРИМАЄТЬСЯ</span>`;
-        } else {
-          tagHtml = `<span class="cell-tag max">MAX</span>`;
-        }
-      }
-      if (cv <= 3.10) {
-        tagHtml += ` <span class="cell-tag dropping" style="background:#dc2626;color:#fff;margin-left:3px;">⚠️ <3.1V</span>`;
-      }
+      const itemCls = isBal ? 'is-bal' : (isMin ? 'is-min' : (isMax ? 'is-max' : ''));
+      const tagHtml = isBal
+        ? `<span class="cell-tag bal">⚖️ BAL</span>`
+        : (isMin ? `<span class="cell-tag min">MIN</span>` : (isMax ? `<span class="cell-tag max">MAX</span>` : ''));
 
       const pct = Math.max(6, Math.min(100, ((cv - 3.0) / 0.65) * 100));
 
@@ -2573,7 +2485,7 @@ function renderCards() {
         <div class="cell-item ${itemCls}">
           <div class="cell-top">
             <span class="cell-idx">Комірка #${idx + 1}</span>
-            <div>${tagHtml}</div>
+            ${tagHtml}
           </div>
           <div class="cell-volt">${cv.toFixed(3)} V</div>
           <div class="cell-bar">
@@ -2664,10 +2576,7 @@ function renderCards() {
         ${cells.length > 0 ? `
           <div class="cells-panel">
             <div class="cells-header">
-              <span class="cells-title">
-                Комірки (${cells.length}S) • ${minV.toFixed(3)}–${maxV.toFixed(3)}V
-                ${(isDischarging && minV <= 3.15) ? '<span class="cell-tag dropping" style="margin-left:4px;">⚠️ ЗОНА ТЕСТУ (<3.15V)</span>' : ''}
-              </span>
+              <span class="cells-title">Комірки (${cells.length}S) • ${minV.toFixed(3)}–${maxV.toFixed(3)}V</span>
               <span class="delta-badge ${deltaClass}">Δ ${deltaMv} mV</span>
             </div>
             <div class="cells-grid">
