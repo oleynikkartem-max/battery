@@ -2343,10 +2343,28 @@ function renderHistoryPanel(s) {
   const chgMax = Math.max(...arr.map(r => r[2]));
   const dsgMax = Math.min(...arr.map(r => r[2]));
 
+  const lastMinCellNum = last[7] ? `Комірка #${last[7]}` : 'мін';
+  const lastMaxCellNum = last[8] ? `Комірка #${last[8]}` : 'макс';
+
+  return `
+    <div class="cells-panel">
+      <div class="cells-header">
+        <span class="cells-title">📈 Журнал Δ • ${fmtClock(t0)}–${fmtClock(t1)}</span>
+        <span class="delta-badge ${last[3] <= 30 ? 'good' : (last[3] <= 80 ? 'mid' : 'high')}">зараз ${last[3]} mV</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:64px;display:block;background:rgba(255,255,255,0.03);border-radius:10px;">
+        ${bands}
+        <polyline points="${pts}" fill="none" stroke="#f59e0b" stroke-width="1.6"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:6px;gap:6px;flex-wrap:wrap;">
+        <span>Δ мін: <b style="color:#e2e8f0">${minD}</b> • макс: <b style="color:#e2e8f0">${maxD}</b> mV</span>
+        <span>⚖️ Баланс: <b style="color:#22d3ee">${Math.round(balMs / 60000)} хв</b></span>
+        <span>Мінімум: <b style="color:#fca5a5">${lowestCell.toFixed(3)} V</b></span>
+        <span>Пік: <b style="color:#34d399">${peakCell.toFixed(3)} V</b></span>
+      </div>
       <div style="font-size:10.5px;color:#cbd5e1;margin-top:4px;">
         <span>Зараз внизу: <b style="color:#fca5a5">${lastMinCellNum}</b> (${last[6].toFixed(3)} V) • вгорі: <b style="color:#34d399">${lastMaxCellNum}</b> (${last[5].toFixed(3)} V)</span>
       </div>
-
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="icon-btn" style="width:auto;padding:0 10px;font-size:11px;" onclick="copyHistory('${s.id}')">📋 Копіювати CSV (${arr.length})</button>
         <button class="icon-btn" style="width:auto;padding:0 10px;font-size:11px;" onclick="clearHistory('${s.id}')">🗑 Очистити</button>
