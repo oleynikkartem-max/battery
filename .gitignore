@@ -2,3 +2,4 @@ creds.txt
 backup_*.json
 tools/backup_*.json
 __pycache__/
+local/

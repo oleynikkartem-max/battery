@@ -2719,7 +2719,7 @@ function invFixTs(ts) {
 }
 
 const INV_MODE_UA = {
-  'grid mode': 'Від мережі', 'line mode': 'Від мережі', 'battery mode': 'Від батареї',
+  'grid mode': 'Від мережі', 'line mode': 'Від мережі', 'mains mode': 'Від мережі', 'battery mode': 'Від батареї',
   'standby mode': 'Очікування', 'power on mode': 'Увімкнення', 'fault mode': 'Аварія',
   'power saving mode': 'Енергозбереження', 'bypass mode': 'Байпас', 'off-grid mode': 'Автономно',
   'shutdown mode': 'Вимкнено', 'charging mode': 'Заряджання'
@@ -2727,17 +2727,6 @@ const INV_MODE_UA = {
 const INV_PRIO_UA = {
   SNU: 'Сонце + мережа', SOF: 'Спершу сонце', OSO: 'Тільки сонце', CSO: 'Пріоритет сонця', UTI: 'Мережа',
   SUB: 'Сонце → мережа → АКБ', SBU: 'Сонце → АКБ → мережа', USB: 'Мережа → сонце → АКБ', SUF: 'Сонце + мережа'
-};
-const INV_PAR_UA = {
-  gd_mains_voltage: 'Напруга мережі', gd_mains_frequency: 'Частота мережі',
-  sy_operating_mode: 'Режим роботи', sy_dcdc_temperature: 'Температура DC/DC',
-  sy_inverter_temperature: 'Температура інвертора', sy_pv_temperature: 'Температура сонячного модуля',
-  sy_current_output_priority: 'Поточний пріоритет виходу', sy_current_charging_priority: 'Поточний пріоритет заряду',
-  pv_voltage: 'Напруга панелей', pv_current: 'Струм панелей', pv_output_power: 'Потужність панелей',
-  bt_battery_voltage: 'Напруга АКБ', bt_battery_current: 'Струм АКБ', bt_battery_capacity: 'Заряд АКБ',
-  bc_output_voltage: 'Вихідна напруга', bc_output_current: 'Вихідний струм', bc_output_frequency: 'Вихідна частота',
-  bc_load_active_power: 'Активна потужність навантаження', bc_output_apparent_power: 'Повна потужність навантаження',
-  bc_load_percentage: 'Завантаження'
 };
 const INV_ERR_UA = {
   ERR_NOT_FOUND_USR: 'Користувача не знайдено', ERR_USR_OR_PWD: 'Неправильний логін або пароль',
@@ -2753,53 +2742,110 @@ function invErrUa(desc) {
   if (/failed to fetch|network|load failed/i.test(desc)) return 'Немає звʼязку з хмарою SmartESS';
   return 'Помилка хмари: ' + desc;
 }
-function invValUa(id, val) {
-  if (val === '--' || val === 'N/A') return '—';
-  if (id === 'sy_operating_mode') return invModeUa(val);
-  if (/priority/.test(id)) return invPrioUa(val);
-  return val;
-}
-
 const invNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+
+// queryDeviceLastData returns [{title, val, unit}] with human-readable titles. Titles stay the same when
+// the cloud switches the device profile (devcode), unlike the per-profile ids of querySPDeviceLastData.
+const invKey = t => String(t || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const INV_TITLE_SETTINGS = {
+  bat_maximum_charging_voltage: ['maximum charging voltage', 'bulk charging voltage'],
+  bat_floating_charge_voltage: ['floating charge voltage', 'floating charging voltage'],
+  bat_constant_pressure_floating_charge_waiting_time: ['constant pressure to float waiting time', 'time from c.v to floating charge(min)'],
+  bat_maximum_charging_current: ['maximum charging current'],
+  bat_ac_maximum_charging_current: ['maximum mains charging current', 'maximum utility charging current'],
+  bat_main_charging_priority: ['charger source priority', 'main charging priority'],
+  bat_lithium_low_soc_protection_point: ['soc protection value of op1 in off-grid mode', 'low dc cut-off soc in off-grid mode'],
+  bat_mains_mode_lithium_soc_protection_point: ['low dc protection soc in ac mode', 'low dc protection soc in mains mode'],
+  bat_low_voltage_battery_protection_point: ['off-grid mode battery low voltage protection point', 'low dc protection voltage in off-grid mode'],
+  bat_low_voltage_point_of_battery_in_mains_mode: ['mains mode battery low voltage protection point', 'low dc protection voltage in mains mode'],
+};
+const INV_TITLE_UA = {
+  'operating mode': 'Режим роботи', 'grid voltage': 'Напруга мережі', 'grid frequency': 'Частота мережі',
+  'grid power': 'Потужність з мережі', 'ac charging power': 'Заряд від мережі',
+  'total output current': 'Вихідний струм', 'total output active power': 'Активна потужність навантаження',
+  'total output aparent power': 'Повна потужність навантаження', 'total load percentage': 'Завантаження',
+  'output l1 voltage': 'Вихідна напруга', 'output frequency': 'Вихідна частота',
+  'battery voltage': 'Напруга АКБ', 'battery current': 'Струм АКБ', 'battery power': 'Потужність АКБ',
+  'pv voltage': 'Напруга панелей', 'pv current': 'Струм панелей', 'pv power': 'Потужність панелей',
+  'pv charging power': 'Заряд від панелей', 'pv charging current': 'Струм заряду від панелей',
+  'dc module termperature': 'Температура DC/DC', 'inv module termperature': 'Температура інвертора',
+  'pv temperature': 'Температура сонячного модуля', 'output priority': 'Пріоритет виходу',
+};
+const INV_RAW_SKIP = /^(id|timestamp|equipment type|protocol number|devise serial number|output l2 |load l[12] |output l1 (current|active|aparent))/;
+
+async function invFetchLast(allowRepick = true) {
+  try {
+    const dat = await invCall('&action=queryDeviceLastData' + invDevQuery());
+    if (!Array.isArray(dat) || !dat.length) throw new Error('ERR_NO_RECORD');
+    return dat;
+  } catch (e) {
+    // The cloud sometimes re-registers the logger under a new devcode: pick the device again and retry once
+    if (!allowRepick) throw e;
+    const old = JSON.stringify(inv.cfg.dev);
+    await invPickDevice(inv.cfg.dev && inv.cfg.dev.pn);
+    if (JSON.stringify(inv.cfg.dev) === old) throw e;
+    return invFetchLast(false);
+  }
+}
 
 async function invPoll(force = false) {
   if (!inv.cfg || !inv.cfg.dev || inv.busy) return;
   if (!force && Date.now() - inv.lastPoll < 9000) return;
   inv.busy = true;
   try {
-    const dat = await invCall('&action=querySPDeviceLastData' + invDevQuery());
-    const p = {};
-    const raw = [];
-    for (const grp of Object.values((dat && dat.pars) || {})) {
-      for (const it of grp) {
-        p[it.id] = it.val;
-        raw.push([INV_PAR_UA[it.id] || it.par, invValUa(it.id, it.val), (it.unit || '').replace(String.fromCharCode(0xFFFD), '°').replace(/^HZ$/i, 'Hz')]);
+    const dat = await invFetchLast();
+    const p = {}, raw = [];
+    let measuring = true;
+    for (const it of dat) {
+      const k = invKey(it.title);
+      if (!(k in p)) p[k] = it.val;
+      if (k === 'output mode') measuring = false;          // after this the list holds settings, not readings
+      if (measuring && !INV_RAW_SKIP.test(k)) {
+        const v = k === 'operating mode' ? invModeUa(it.val) : /priority/.test(k) ? invPrioUa(it.val) : it.val;
+        raw.push([INV_TITLE_UA[k] || it.title, v, (it.unit || '').replace(String.fromCharCode(0xFFFD), '°').replace(/^HZ$/i, 'Hz')]);
       }
     }
-    // Logger uploads to the cloud every ~5 min: learn the period, predict the next upload
-    const gRaw = dat && dat.gts ? Number(dat.gts) : 0;
-    if (gRaw && gRaw !== inv.lastGtsRaw) {
+    // Upload period: learn it from consecutive timestamps (cloud time is local; invFixTs strips any whole-hour shift)
+    const tsRaw = p['timestamp'] ? new Date(String(p['timestamp']).replace(' ', 'T')).getTime() : 0;
+    if (tsRaw && tsRaw !== inv.lastGtsRaw) {
       if (inv.lastGtsRaw) {
-        const iv = gRaw - inv.lastGtsRaw;
+        const iv = tsRaw - inv.lastGtsRaw;
         if (iv > 5000 && iv < 900000) inv.uploadEvery = Math.round(inv.uploadEvery * 0.5 + iv * 0.5);
       }
-      inv.lastGtsRaw = gRaw;
+      inv.lastGtsRaw = tsRaw;
+    }
+    const modeRaw = p['operating mode'] || '';
+    const onBattery = /battery|off-grid|inverter/i.test(modeRaw);
+    // Battery current may come unsigned in some profiles: derive the sign (+ charge, - discharge)
+    let batA = invNum(p['battery current']);
+    const batP = invNum(p['battery power']);
+    const chgP = (invNum(p['ac charging power']) || 0) + (invNum(p['pv charging power']) || 0);
+    if (batA !== null && batA > 0) {
+      if ((batP !== null && batP < 0) || (onBattery && chgP <= 0)) batA = -batA;
     }
     inv.data = {
-      ts: invFixTs(gRaw || Date.now()),
-      mode: invModeUa(p.sy_operating_mode),
-      gridV: invNum(p.gd_mains_voltage), gridHz: invNum(p.gd_mains_frequency),
-      pvV: invNum(p.pv_voltage), pvW: invNum(p.pv_output_power),
-      batV: invNum(p.bt_battery_voltage), batA: invNum(p.bt_battery_current), batSoc: invNum(p.bt_battery_capacity),
-      loadW: invNum(p.bc_load_active_power), loadVA: invNum(p.bc_output_apparent_power),
-      loadPct: invNum(p.bc_load_percentage), tInv: invNum(p.sy_inverter_temperature),
+      ts: invFixTs(tsRaw || Date.now()),
+      mode: invModeUa(modeRaw),
+      gridV: invNum(p['grid voltage']), gridHz: invNum(p['grid frequency']),
+      pvV: invNum(p['pv voltage']), pvW: invNum(p['pv power']),
+      batV: invNum(p['battery voltage']), batA, batSoc: invNum(p['battery soc'] ?? p['battery capacity']),
+      loadW: invNum(p['total output active power'] ?? p['output active power']),
+      loadVA: invNum(p['total output aparent power'] ?? p['output apparent power']),
+      loadPct: invNum(p['total load percentage'] ?? p['load percent']),
+      tInv: invNum(p['inv module termperature']),
       raw
     };
+    // Settings come in the same response now: map them to the ids the rest of the app uses
+    const st = {};
+    for (const [id, titles] of Object.entries(INV_TITLE_SETTINGS)) {
+      const t = titles.find(x => x in p);
+      if (t && p[t] !== '' && p[t] != null) st[id] = String(p[t]);
+    }
+    if (Object.keys(st).length >= 5) { inv.settings = st; inv.lastSettings = Date.now(); }
+    else if (force || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
     inv.error = null;
     inv.lastPoll = Date.now();
     inv.nextAt = inv.data.ts + inv.uploadEvery;
-    const settingsStale = !inv.settings || !('bat_lithium_low_soc_protection_point' in inv.settings);
-    if ((force && settingsStale) || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
     try { localStorage.setItem(INV_KEY + '_cache', JSON.stringify({ data: inv.data, settings: inv.settings, lastSettings: inv.lastSettings })); } catch (e) {}
   } catch (e) {
     inv.error = invErrUa(e.message || String(e));
