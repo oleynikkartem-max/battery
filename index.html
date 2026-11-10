@@ -1155,24 +1155,28 @@
     .inv-line .link { color:#60a5fa; font-weight:700; cursor:pointer; white-space:nowrap; }
     .inv-line .dv-ok { color:#34d399; } .inv-line .dv-warn { color:#fbbf24; } .inv-line .dv-bad { color:#fb7185; }
     .hist-fold summary { list-style:none; cursor:pointer; margin-bottom:0; }
-    .hx-sec { margin-bottom:12px; }
-    .hx-sec .delta-badge { max-width:62%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .hx-body { margin-top:10px; }
-    .hx-note { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.45; }
-    .hx-note b { color:#e2e8f0; }
-    .hx-note .link, .hx-body .link { color:#60a5fa; font-weight:700; cursor:pointer; }
+    .hx-card { margin-bottom:12px; }
+    .hx-line { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .hx-name { font-size:14px; font-weight:800; color:#f1f5f9; }
+    .hx-state { font-size:13px; font-weight:800; color:#94a3b8; text-align:right; }
+    .hx-state.heat { color:#fbbf24; } .hx-state.on { color:#34d399; } .hx-state.bad { color:#fb7185; }
+    .hx-dim { font-size:11px; color:var(--muted); }
+    .hx-warn { font-size:11.5px; color:#fb7185; margin-top:8px; line-height:1.4; }
+    .hx-card .link { color:#60a5fa; font-weight:700; cursor:pointer; font-size:12px; }
+    .hx-tiles { margin:12px 0 6px; }
+    .hx-row { display:grid; grid-template-columns:44px 1fr auto 92px; gap:8px; align-items:baseline; padding:7px 2px; border-top:1px solid var(--border); font-size:12.5px; color:#cbd5e1; }
+    .hx-row b { color:#f1f5f9; font-weight:700; text-align:right; white-space:nowrap; }
+    .hx-row span { white-space:nowrap; }
+    .hx-chg { grid-template-columns:1.5fr 0.8fr 1.25fr 1fr 0.9fr; }
+    .hx-head { border-top:0; font-size:10.5px; padding-bottom:3px; }
+    .hx-head span, .hx-head b { color:var(--muted); font-weight:600; }
+    .hx-red { color:#fb7185 !important; }
+    .hx-more { text-align:center; font-size:11.5px; font-weight:700; color:#60a5fa; cursor:pointer; padding:8px 0 0; border-top:1px solid var(--border); }
+    .hx-cap { margin-top:12px; font-size:13px; color:#cbd5e1; }
+    .hx-cap b { color:#f1f5f9; font-size:14px; }
+    .hx-sep { height:1px; background:var(--border); margin:12px 0 4px; }
     .hx-sub { font-size:11px; font-weight:800; color:#cbd5e1; margin:10px 0 2px; }
-    .hx-item { padding:8px 0; border-bottom:1px solid var(--border); }
-    .hx-item:last-of-type { border-bottom:0; }
-    .hx-top { display:flex; justify-content:space-between; gap:8px; font-size:12.5px; color:#e2e8f0; }
-    .hx-top b { white-space:nowrap; }
-    .hx-bot { font-size:11px; color:var(--muted); margin-top:3px; line-height:1.4; }
-    .hx-log { font-size:10.5px; color:var(--muted); margin-top:8px; line-height:1.5; }
     .hx-input { flex:1; min-width:0; background:var(--card-inner); border:1px solid var(--border); border-radius:10px; color:#e2e8f0; padding:8px 10px; font-size:12px; }
-    .hx-table .row { display:grid; grid-template-columns:1.5fr 1fr 1fr; }
-    .hx-table .row b { text-align:right; font-weight:700; }
-    .hx-table .hx-head b { color:var(--muted); font-size:11px; }
-    .hist-fold summary::-webkit-details-marker { display:none; }
     .inv-more { margin-top:12px; }
     .inv-more summary { list-style:none; cursor:pointer; font-size:11px; font-weight:700; color:var(--muted); text-align:center; padding:4px; }
     .inv-more summary::-webkit-details-marker { display:none; }
@@ -3615,70 +3619,91 @@ async function hxBoilerPoll(force = false) {
   if (activeTab === 'history') renderHistoryTab();
 }
 
-// ---- rendering ----
-const hxOpen = {};
-function hxSection(id, title, badge, body, openByDefault) {
-  const open = hxOpen[id] === undefined ? openByDefault : hxOpen[id];
-  return `<details class="cells-panel hist-fold hx-sec" ${open ? 'open' : ''} ontoggle="hxOpen['${id}']=this.open">
-    <summary class="cells-header"><span class="cells-title">${title} ▾</span>${badge || ''}</summary>
-    <div class="hx-body">${body}</div></details>`;
-}
+// ---- rendering: three compact cards, no folds, no filler text ----
 const hxKwh = wh => (wh / 1000).toFixed(2) + ' кВт·год';
 const hxDur = h => formatHoursMinutes(h);
+let hxAllOut = false;
 
 function hxRenderBoiler() {
   const url = hxBoilerUrl();
   if (!url) {
-    return hxSection('boiler', '🚿 Бойлер', '', `
-      <div class="hx-note">Вставте адресу статусу автоматики — рядок із файлу <b>status_url.txt</b> на компʼютері. Зберігається лише в цьому браузері.</div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
+    return `<div class="cells-panel hx-card">
+      <div class="hx-line"><span class="hx-name">🚿 Бойлер</span><span class="hx-dim">вставте адресу з status_url.txt</span></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
         <input id="hx-boiler-url" class="hx-input" placeholder="https://….workers.dev/?k=…" autocomplete="off" autocapitalize="off">
         <button class="icon-btn" style="width:auto;padding:0 12px;font-size:12px;" onclick="hxBoilerSave()">Зберегти</button>
-      </div>${hxState.boilerErr ? `<div class="hx-note" style="color:#fb7185">${hxState.boilerErr}</div>` : ''}`, true);
+      </div>${hxState.boilerErr ? `<div class="hx-warn">${hxState.boilerErr}</div>` : ''}</div>`;
   }
   const b = hxState.boiler;
-  if (!b) return hxSection('boiler', '🚿 Бойлер', '', `<div class="hx-note">${hxState.boilerErr || 'Завантаження…'}</div>
-    <input id="hx-boiler-url" type="hidden" value=""><div class="hx-note"><span class="link" onclick="hxBoilerSave()">Відключити</span></div>`, true);
+  const reset = `<input id="hx-boiler-url" type="hidden" value=""><span class="link" onclick="hxBoilerSave()">змінити адресу</span>`;
+  if (!b) {
+    return `<div class="cells-panel hx-card"><div class="hx-line"><span class="hx-name">🚿 Бойлер</span>
+      <span class="hx-dim">${hxState.boilerErr ? hxState.boilerErr : 'завантаження…'}</span></div>
+      ${hxState.boilerErr ? `<div class="hx-warn">${reset}</div>` : ''}</div>`;
+  }
   const st = b.st || {}, so = b.sock || {};
   const ageMin = st.lastRun ? Math.max(0, Math.floor(Date.now() / 60000) - st.lastRun) : null;
-  const alive = ageMin !== null && ageMin <= 3;
-  let state, cls = 'mid';
-  if (so.error) { state = 'Стан невідомий'; }
-  else if (so.online === false) { state = 'Розетка не в мережі'; cls = 'high'; }
-  else if (so.on && so.powerW > 20) { state = `Гріє • ${Math.round(so.powerW)} W`; cls = 'good'; }
-  else if (so.on) { state = 'Увімкнений • не гріє'; cls = 'good'; }
-  else { state = st.want === 'battery' ? 'Вимкнений • будинок на батареї' : (st.want === 'stale' ? 'Вимкнений • немає даних інвертора' : 'Вимкнений'); }
-  const errs = [st.invErr, st.sockErr].filter(Boolean);
-  const body = `
-    <div class="inv-kv">
-      <div class="row"><span>Автоматика</span><b style="color:${alive && !errs.length ? '#34d399' : '#fb7185'}">${alive ? (errs.length ? 'працює, є помилки' : 'працює') : 'не відповідає'}${ageMin !== null ? ` • ${ageMin} хв тому` : ''}</b></div>
-      <div class="row"><span>Режим за інвертором</span><b>${st.want === 'grid' ? 'мережа → бойлер дозволено' : (st.want === 'battery' ? 'батарея → бойлер вимкнено' : (st.want || '—'))}</b></div>
-      ${so.voltage ? `<div class="row"><span>Напруга на розетці</span><b>${Math.round(so.voltage)} V</b></div>` : ''}
-      ${errs.map(e => `<div class="row"><span>Помилка</span><b style="color:#fb7185;white-space:normal;text-align:right">${e}</b></div>`).join('')}
-    </div>
-    <div class="hx-log">${(b.log || []).slice(0, 6).map(l => `<div>${l}</div>`).join('')}</div>
-    <input id="hx-boiler-url" type="hidden" value=""><div class="hx-note"><span class="link" onclick="hxBoilerPoll(true)">Оновити</span> • <span class="link" onclick="hxBoilerSave()">Відключити</span></div>`;
-  return hxSection('boiler', '🚿 Бойлер', `<span class="delta-badge ${cls}">${state}</span>`, body, true);
+  let state, cls = 'off';
+  if (so.error || so.on === null || so.on === undefined) { state = 'немає даних'; }
+  else if (so.online === false) { state = 'Розетка не в мережі'; cls = 'bad'; }
+  else if (so.on && so.powerW > 20) { state = `Гріє • ${Math.round(so.powerW)} W`; cls = 'heat'; }
+  else if (so.on) { state = 'Увімкнений • не гріє'; cls = 'on'; }
+  else { state = st.want === 'grid' ? 'Вимкнений' : 'Вимкнений • без світла'; }
+  // one red line only when something is wrong; silence means the automation is fine
+  const problems = [];
+  if (ageMin === null || ageMin > 3) problems.push(`Автоматика не відповідає${ageMin !== null ? ` ${ageMin} хв` : ''}`);
+  if (st.sockErr) problems.push('Автоматика не може керувати розеткою');
+  if (st.invErr) problems.push('Автоматика не бачить інвертор');
+  return `<div class="cells-panel hx-card">
+    <div class="hx-line"><span class="hx-name">🚿 Бойлер</span><span class="hx-state ${cls}">${state}</span></div>
+    ${problems.length ? `<div class="hx-warn">⚠️ ${problems.join(' • ')} • ${reset}</div>` : ''}</div>`;
 }
 
-function hxRenderDiary() {
+function hxRenderOutages(a) {
+  const tile = (label, val, sub) => `<div class="flow-item"><div class="bus-label">${label}</div><div class="bus-val">${val}</div><div class="bus-sub">${sub}</div></div>`;
+  const tiles = `<div class="flow-bar hx-tiles">
+    ${tile('Сьогодні', a.today.n ? hxDur(a.today.hours) : 'не було', a.today.n ? hxKwh(a.today.wh) : 'відключень')}
+    ${tile(HX_DAYS + ' днів', a.week.n ? hxDur(a.week.hours) : 'не було', a.week.n ? hxKwh(a.week.wh) : 'відключень')}
+    ${tile('Середній розряд', a.avgW ? Math.round(a.avgW) + ' W' : '—', 'без світла')}
+  </div>`;
+  const all = a.outages.slice().reverse();
+  const shown = hxAllOut ? all : all.slice(0, 5);
+  let rows = shown.map(o => `<div class="hx-row">
+      <span>${hxDm(o.t0)}</span><span>${hxHm(o.t0)}–${o.ongoing ? 'зараз' : hxHm(o.t1)}</span>
+      <b>${hxDur(o.hours)}</b><b>${hxKwh(o.wh)}</b></div>`).join('');
+  if (!all.length) rows = `<div class="hx-dim" style="padding:6px 0">${hxState.busy ? 'завантаження…' : 'Відключень не було'}</div>`;
+  const more = all.length > 5 ? `<div class="hx-more" onclick="hxAllOut=!hxAllOut;renderHistoryTab()">${hxAllOut ? 'згорнути' : `ще ${all.length - 5}`}</div>` : '';
+  const last = a.outages[a.outages.length - 1];
+  return `<div class="cells-panel hx-card">
+    <div class="hx-line"><span class="hx-name">🔌 Відключення</span>${last && last.ongoing ? '<span class="hx-state bad">зараз без світла</span>' : ''}</div>
+    ${tiles}${rows}${more}
+    ${hxState.error ? `<div class="hx-warn">⚠️ ${hxState.error}</div>` : ''}</div>`;
+}
+
+function hxRenderBattery(a) {
+  const d = a ? a.deepest : null;
+  const offV = etaParams().offV;
+  const cap = d
+    ? `<div class="hx-line hx-cap"><span>Перевірена ємність пари</span><b>${d.minV <= offV + 0.3 ? '≈' : 'не менше'} ${d.ah.toFixed(0)} Ah</b></div>
+       <div class="hx-dim">розряд ${hxDm(d.t0)} від повної до ${d.minV.toFixed(1)} V</div>`
+    : `<div class="hx-line hx-cap"><span>Перевірена ємність пари</span><b>—</b></div>
+       <div class="hx-dim">ще не було розряду від повної батареї</div>`;
   const keys = Object.keys(hxDiary).filter(k => (hxDiary[k] || []).length)
-    .sort((a, b) => (a.startsWith('Sandisolar') ? 0 : 1) - (b.startsWith('Sandisolar') ? 0 : 1));
-  if (!keys.length) {
-    return hxSection('diary', '⚖️ Щоденник заряду', '', `<div class="hx-note">Записів ще немає. Запис зʼявляється, коли сайт відкритий під час заряду і комірка піднімається вище 3.40 V.</div>`, false);
+    .sort((x, y) => (x.startsWith('Sandisolar') ? 0 : 1) - (y.startsWith('Sandisolar') ? 0 : 1));
+  let diary = `<div class="hx-dim" style="padding-top:6px">Заряди зʼявляться тут, коли сайт відкритий під час заряду.</div>`;
+  if (keys.length) {
+    diary = keys.map(k => {
+      const list = hxDiary[k].slice(-5).reverse();
+      return (keys.length > 1 ? `<div class="hx-sub">${k.split('|')[0]}</div>` : '') +
+        `<div class="hx-row hx-chg hx-head"><span>Заряд</span><span>до</span><b>Пік</b><b>Δ в кінці</b><b>Баланс</b></div>` +
+        list.map(e => `<div class="hx-row hx-chg">
+          <span>${hxDm(e.t0)} ${hxHm(e.t0)}</span><span>${e.bulk ? e.bulk.toFixed(1) + ' V' : '—'}</span>
+          <b class="${e.peak >= 3.58 ? 'hx-red' : ''}">#${e.cell} ${e.peak.toFixed(3)}</b><b>${e.dEnd} mV</b><b>${e.bal} хв</b></div>`).join('');
+    }).join('');
   }
-  let badge = '';
-  const body = keys.map(k => {
-    const list = hxDiary[k].slice(-8).reverse();
-    const brand = k.split('|')[0];
-    if (!badge) badge = `<span class="delta-badge ${list[0].dEnd <= 80 ? 'mid' : 'high'}">остання Δ ${list[0].dEnd} mV</span>`;
-    return `<div class="hx-sub">${brand}</div>` + list.map(e => `
-      <div class="hx-item">
-        <div class="hx-top"><span>${hxDm(e.t0)} ${hxHm(e.t0)}–${hxHm(e.t1)}${e.bulk ? ` • заряд до ${e.bulk.toFixed(1)} V` : ''}</span><b>пік #${e.cell}: ${e.peak.toFixed(3)} V</b></div>
-        <div class="hx-bot">Δ наприкінці ${e.dEnd} mV (при ${e.iEnd} A) • макс. Δ ${e.dMax} mV • баланс ${e.bal} хв • до ${e.maxI} A</div>
-      </div>`).join('');
-  }).join('');
-  return hxSection('diary', '⚖️ Щоденник заряду', badge, body + `<div class="hx-note">Пишеться лише коли сайт відкритий під час заряду.</div>`, false);
+  return `<div class="cells-panel hx-card">
+    <div class="hx-line"><span class="hx-name">🔋 Батарея</span></div>
+    ${cap}<div class="hx-sep"></div>${diary}</div>`;
 }
 
 function renderHistoryTab() {
@@ -3686,51 +3711,13 @@ function renderHistoryTab() {
   if (!root) return;
   hxUpdateDiary();
   let html = hxRenderBoiler();
-
   if (!inv.cfg || !inv.cfg.dev) {
-    html += `<div class="cells-panel"><div class="hx-note">Історія відключень береться з інвертора. <span class="link" onclick="invOpenModal()">Увійти в SmartESS →</span></div></div>`;
+    html += `<div class="cells-panel hx-card"><div class="hx-line"><span class="hx-name">🔌 Відключення</span>
+      <span class="link" onclick="invOpenModal()">Увійти в SmartESS →</span></div></div>` + hxRenderBattery(null);
   } else {
     const a = hxAnalyze();
-    const status = hxState.busy ? 'оновлення…' : (hxState.error ? '⚠️ ' + hxState.error : (hxState.lastFetch ? 'оновлено ' + hxHm(hxState.lastFetch) : ''));
-    // outages
-    const list = a.outages.slice().reverse().slice(0, 12);
-    const outBody = (list.length ? list.map(o => `
-      <div class="hx-item">
-        <div class="hx-top"><span>${hxDm(o.t0)} ${hxHm(o.t0)}–${o.ongoing ? 'триває' : hxHm(o.t1)}</span><b>${hxDur(o.hours)}</b></div>
-        <div class="hx-bot">${hxKwh(o.wh)} з батареї • ${o.ah.toFixed(0)} Ah • у середньому ${Math.round(o.avgW)} W • мін. ${o.minV < 90 ? o.minV.toFixed(1) : '—'} V</div>
-      </div>`).join('') : `<div class="hx-note">За останні ${HX_DAYS} днів відключень не було.</div>`) +
-      `<div class="hx-note">${status}${status ? ' • ' : ''}<span class="link" onclick="hxRefresh(true)">Оновити</span>${a.first ? ` • дані з ${hxDm(a.first)}` : ''}</div>`;
-    const last = a.outages[a.outages.length - 1];
-    html += hxSection('out', '🔌 Відключення', last ? `<span class="delta-badge ${last.ongoing ? 'high' : 'mid'}">${last.ongoing ? 'зараз без мережі' : 'останнє ' + hxDm(last.t0)}</span>` : '', outBody, true);
-
-    // statistics
-    const col = (w) => [`${w.n}`, hxDur(w.hours), hxKwh(w.wh), hxKwh(w.chg), w.hours > 0.2 ? Math.round(w.wh / w.hours) + ' W' : '—', (w.ah / 100).toFixed(2)];
-    const t = col(a.today), w = col(a.week);
-    const names = ['Відключень', 'Без мережі', 'Взято з батареї', 'Повернуто зарядом', 'Середній розряд', 'Циклів (пара 100 Ah)'];
-    html += hxSection('stat', '📈 Статистика', '', `
-      <div class="inv-kv hx-table">
-        <div class="row hx-head"><span></span><b>Сьогодні</b><b>${HX_DAYS} днів</b></div>
-        ${names.map((n, i) => `<div class="row"><span>${n}</span><b>${t[i]}</b><b>${w[i]}</b></div>`).join('')}
-      </div>
-      <div class="hx-note">${a.avgW ? `Прогноз «якщо зникне мережа» рахується за середнім розрядом ${Math.round(a.avgW)} W.` : `Поки мало даних: прогноз «якщо зникне мережа» рахується за ${ETA_HOME_W} W.`}</div>`, false);
-
-    // confirmed capacity
-    const d = a.deepest;
-    const offV = etaParams().offV;
-    const capBody = d ? `
-      <div class="inv-kv">
-        <div class="row"><span>Найглибший розряд від повної</span><b>${d.ah.toFixed(0)} Ah • ${hxKwh(d.wh)}</b></div>
-        <div class="row"><span>Коли</span><b>${hxDm(d.t0)} ${hxHm(d.t0)}–${hxHm(d.t1)}</b></div>
-        <div class="row"><span>Напруга в кінці</span><b>${d.minV.toFixed(1)} V</b></div>
-      </div>
-      <div class="hx-note">${d.minV <= offV + 0.3
-        ? `Розряд дійшов до відсічки інвертора: доступна ємність пари ≈ <b>${d.ah.toFixed(0)} Ah</b>.`
-        : `Підтверджено: пара віддає <b>не менше ${d.ah.toFixed(0)} Ah</b>. Повну ємність буде видно, коли батарея розрядиться до відсічки (${offV} V).`}
-        Рахується за струмом інвертора, точність приблизно ±10%.</div>`
-      : `<div class="hx-note">Ще не було розряду, який почався з повністю зарядженої батареї.</div>`;
-    html += hxSection('cap', '🔋 Реальна ємність', d ? `<span class="delta-badge mid">≥ ${d.ah.toFixed(0)} Ah</span>` : '', capBody, false);
+    html += hxRenderOutages(a) + hxRenderBattery(a);
   }
-  html += hxRenderDiary();
   const inp = document.getElementById('hx-boiler-url');
   const typed = inp && inp.type !== 'hidden' ? inp.value : '';
   const hadFocus = inp && document.activeElement === inp;
