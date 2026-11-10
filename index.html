@@ -132,8 +132,8 @@
     /* Segmented Tabs Switcher */
     .tabs-bar {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
       background: rgba(10, 15, 29, 0.8);
       border: 1px solid var(--border-highlight);
       padding: 5px;
@@ -149,13 +149,15 @@
       color: var(--muted);
       font-size: 13px;
       font-weight: 700;
-      padding: 10px 8px;
+      padding: 10px 4px;
       border-radius: 12px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
+      white-space: nowrap;
+      min-width: 0;
       transition: all 0.2s ease;
     }
 
@@ -1153,6 +1155,23 @@
     .inv-line .link { color:#60a5fa; font-weight:700; cursor:pointer; white-space:nowrap; }
     .inv-line .dv-ok { color:#34d399; } .inv-line .dv-warn { color:#fbbf24; } .inv-line .dv-bad { color:#fb7185; }
     .hist-fold summary { list-style:none; cursor:pointer; margin-bottom:0; }
+    .hx-sec { margin-bottom:12px; }
+    .hx-sec .delta-badge { max-width:62%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .hx-body { margin-top:10px; }
+    .hx-note { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.45; }
+    .hx-note b { color:#e2e8f0; }
+    .hx-note .link, .hx-body .link { color:#60a5fa; font-weight:700; cursor:pointer; }
+    .hx-sub { font-size:11px; font-weight:800; color:#cbd5e1; margin:10px 0 2px; }
+    .hx-item { padding:8px 0; border-bottom:1px solid var(--border); }
+    .hx-item:last-of-type { border-bottom:0; }
+    .hx-top { display:flex; justify-content:space-between; gap:8px; font-size:12.5px; color:#e2e8f0; }
+    .hx-top b { white-space:nowrap; }
+    .hx-bot { font-size:11px; color:var(--muted); margin-top:3px; line-height:1.4; }
+    .hx-log { font-size:10.5px; color:var(--muted); margin-top:8px; line-height:1.5; }
+    .hx-input { flex:1; min-width:0; background:var(--card-inner); border:1px solid var(--border); border-radius:10px; color:#e2e8f0; padding:8px 10px; font-size:12px; }
+    .hx-table .row { display:grid; grid-template-columns:1.5fr 1fr 1fr; }
+    .hx-table .row b { text-align:right; font-weight:700; }
+    .hx-table .hx-head b { color:var(--muted); font-size:11px; }
     .hist-fold summary::-webkit-details-marker { display:none; }
     .inv-more { margin-top:12px; }
     .inv-more summary { list-style:none; cursor:pointer; font-size:11px; font-weight:700; color:var(--muted); text-align:center; padding:4px; }
@@ -1223,11 +1242,14 @@
   <!-- 2-Tab Switcher -->
   <div class="tabs-bar">
     <button id="tab-btn-visual" class="tab-btn active" onclick="switchTab('visual')">
-      <span>🏠 Схема 24V</span>
+      <span>🏠 Схема</span>
     </button>
     <button id="tab-btn-details" class="tab-btn" onclick="switchTab('details')">
-      <span>📊 Детально</span>
+      <span>📊 Деталі</span>
       <span id="tab-count-badge" class="tab-count">0</span>
+    </button>
+    <button id="tab-btn-history" class="tab-btn" onclick="switchTab('history')">
+      <span>🕘 Історія</span>
     </button>
   </div>
 
@@ -1239,6 +1261,11 @@
   <!-- TAB 2: DETAILED CARDS (CELLS, MOSFETS, CYCLES) -->
   <div id="tab-details" class="tab-pane">
     <div id="cards" class="cards"></div>
+  </div>
+
+  <!-- TAB 3: HISTORY (BOILER, OUTAGES, STATS, CHARGE DIARY, CAPACITY) -->
+  <div id="tab-history" class="tab-pane">
+    <div id="history-panel"></div>
   </div>
 </div>
 
@@ -1522,6 +1549,9 @@ function switchTab(tabName) {
   document.getElementById('tab-btn-details').classList.toggle('active', tabName === 'details');
   document.getElementById('tab-visual').classList.toggle('active', tabName === 'visual');
   document.getElementById('tab-details').classList.toggle('active', tabName === 'details');
+  document.getElementById('tab-btn-history').classList.toggle('active', tabName === 'history');
+  document.getElementById('tab-history').classList.toggle('active', tabName === 'history');
+  if (tabName === 'history') { renderHistoryTab(); hxBoilerPoll(true); hxRefresh(); }
 }
 
 async function handleVisualSlotClick(sessionId, connectMode) {
@@ -2365,7 +2395,9 @@ function computeSystemEta(strings, I, V) {
   if (d && (d.loadVA !== null || d.loadW !== null)) {
     // With the grid present the current load says little (flat may bypass the inverter, boiler runs only on grid):
     // estimate the outage runtime for the typical home load instead.
-    const loadW = gridOn ? ETA_HOME_W : Math.max(d.loadW || 0, (d.loadVA || 0) * 0.7);
+    const learned = gridOn ? hxTypicalW() : null;
+    const homeW = learned || ETA_HOME_W;
+    const loadW = gridOn ? homeW : Math.max(d.loadW || 0, (d.loadVA || 0) * 0.7);
     // ETA_HOME_W is battery-side power (what the site showed during outages), so no inverter losses on top
     const drawW = gridOn ? loadW : loadW / 0.92 + 40;   // measured output load: add efficiency + ~40 W own consumption
     const floorIdle = Math.max(P.offSoc, socAtVoltageCut(P.offV, drawW / Vb));
@@ -2375,7 +2407,7 @@ function computeSystemEta(strings, I, V) {
       cls: '',
       label: gridOn ? '🔋 Якщо зникне мережа:' : '⏱ Час роботи:',
       value: `~${formatHoursMinutes(hrs)}`,
-      sub: (gridOn ? `при типовому розряді ${ETA_HOME_W} W з батареї` : `навантаження ~${Math.round(loadW)} W + втрати інвертора`) + ` • до ${Math.round(floorIdle)}% заряду`
+      sub: (gridOn ? (learned ? `при середньому розряді ${homeW} W (за відключеннями тижня)` : `при типовому розряді ${homeW} W з батареї`) : `навантаження ~${Math.round(loadW)} W + втрати інвертора`) + ` • до ${Math.round(floorIdle)}% заряду`
     };
   }
   const hrs300 = (Math.max(0, remAll - P.offSoc / 100 * nomAll) * Vb) / 300;
@@ -3197,6 +3229,7 @@ function renderCards() {
   uaUnits(document.getElementById('tab-details'));
 }
 
+
 function renderCardsInner() {
   const container = document.getElementById('cards');
   const list = Object.values(sessions);
@@ -3384,6 +3417,333 @@ function renderCardsInner() {
     `;
   }).join('') + renderBleLog();
 }
+
+
+// =====================================================================================
+// HISTORY TAB: boiler, outages, statistics, charge diary, confirmed capacity.
+// Everything here lives on its own tab and never touches the main screen.
+// =====================================================================================
+const HX_KEY = 'bms_studio_hx_v1';          // inverter day rows cache: { days: { 'YYYY-MM-DD': { rows, done } } }
+const HX_DIARY_KEY = 'bms_studio_diary_v1'; // charge diary: { 'brand|name': [episode, ...] }
+const HX_BOILER_KEY = 'bms_studio_boiler_v1';
+const HX_DAYS = 7;
+let hx = { days: {} };
+try { hx = JSON.parse(localStorage.getItem(HX_KEY) || 'null') || { days: {} }; } catch (e) { hx = { days: {} }; }
+let hxDiary = {};
+try { hxDiary = JSON.parse(localStorage.getItem(HX_DIARY_KEY) || '{}') || {}; } catch (e) { hxDiary = {}; }
+const hxState = { busy: false, error: null, lastFetch: 0, boiler: null, boilerErr: null, boilerAt: 0, boilerBusy: false };
+
+const hxDayStr = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const hxHm = t => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const hxDm = t => { const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; };
+
+// ---- inverter history (cloud) ----
+async function hxFetchDay(day) {
+  const rows = [];
+  for (let page = 0; page < 8; page++) {
+    let dat;
+    try { dat = await invCall(`&action=queryDeviceDataOneDayPaging&date=${day}&page=${page}&pagesize=100` + invDevQuery()); }
+    catch (e) { if (page === 0 && /Немає даних|NO_RECORD/i.test(e.message || '')) return []; throw e; }
+    const titles = ((dat && dat.title) || []).map(x => invKey(x.title));
+    const list = (dat && dat.row) || [];
+    if (!list.length) break;
+    const ix = n => titles.indexOf(n);
+    const iT = ix('timestamp'), iM = ix('operating mode'), iG = ix('grid voltage'), iP = ix('battery power'),
+          iI = ix('battery current'), iV = ix('battery voltage'), iO = ix('total output active power');
+    if (iT < 0 || iM < 0) break;
+    for (const r of list) {
+      const f = r.field || [];
+      const ts = new Date(String(f[iT]).replace(' ', 'T')).getTime();
+      if (!ts) continue;
+      const gridV = parseFloat(f[iG]);
+      const off = /battery|off-?grid|inverter/i.test(f[iM] || '') || (!isNaN(gridV) && gridV < 150) ? 1 : 0;
+      rows.push([ts, off, parseFloat(f[iP]) || 0, parseFloat(f[iI]) || 0, parseFloat(f[iV]) || 0, parseFloat(f[iO]) || 0]);
+    }
+    if (list.length < 100) break;
+  }
+  rows.sort((a, b) => a[0] - b[0]);
+  return rows;
+}
+
+async function hxRefresh(force = false) {
+  if (!inv.cfg || !inv.cfg.dev || hxState.busy) return;
+  if (!force && Date.now() - hxState.lastFetch < 5 * 60000) return;
+  hxState.busy = true; hxState.error = null;
+  if (activeTab === 'history') renderHistoryTab();
+  try {
+    const today = hxDayStr(Date.now());
+    for (let i = HX_DAYS - 1; i >= 0; i--) {
+      const day = hxDayStr(Date.now() - i * 86400000);
+      const c = hx.days[day];
+      if (c && c.done && day !== today) continue;          // past days never change
+      hx.days[day] = { rows: await hxFetchDay(day), done: day !== today };
+    }
+    const keep = new Set(Array.from({ length: HX_DAYS + 1 }, (_, i) => hxDayStr(Date.now() - i * 86400000)));
+    for (const k of Object.keys(hx.days)) if (!keep.has(k)) delete hx.days[k];
+    hxState.lastFetch = Date.now();
+    try { localStorage.setItem(HX_KEY, JSON.stringify(hx)); } catch (e) {}
+  } catch (e) {
+    hxState.error = invErrUa(e.message || String(e));
+  } finally {
+    hxState.busy = false;
+    if (activeTab === 'history') renderHistoryTab();
+  }
+}
+
+// rows: [ts, off, batP(W, − discharge), batI(A), batV, outW]
+function hxAnalyze() {
+  const rows = Object.keys(hx.days).sort().flatMap(d => hx.days[d].rows || []);
+  const CAP = 15 * 60000;                                   // a longer hole = logger was offline, don't integrate over it
+  const outages = [];
+  let cur = null, chargedWh = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i], prev = rows[i - 1];
+    const dtH = prev ? Math.min(r[0] - prev[0], CAP) / 3600000 : 0;
+    if (prev && cur) {                                      // interval prev -> r belongs to the outage
+      cur.wh += Math.abs(Math.min(0, prev[2])) * dtH;
+      cur.ah += Math.abs(Math.min(0, prev[3])) * dtH;
+    } else if (prev && prev[2] > 0 && !prev[1]) {
+      chargedWh += prev[2] * dtH;
+    }
+    if (r[1] && !cur) {
+      cur = { t0: r[0], t1: r[0], wh: 0, ah: 0, minV: r[4] || 99, peakW: 0,
+              fromFull: Boolean(prev && !prev[1] && prev[4] >= 27.0 && Math.abs(prev[3]) < 2), chargedBefore: chargedWh };
+    }
+    if (cur) {
+      if (r[1]) { cur.t1 = r[0]; if (r[4]) cur.minV = Math.min(cur.minV, r[4]); cur.peakW = Math.max(cur.peakW, Math.abs(r[2])); }
+      else { cur.t1 = r[0]; outages.push(cur); cur = null; }
+    }
+  }
+  if (cur) { cur.ongoing = Date.now() - cur.t1 < 20 * 60000; outages.push(cur); }
+  for (const o of outages) { o.hours = (o.t1 - o.t0) / 3600000; o.avgW = o.hours > 0.05 ? o.wh / o.hours : 0; }
+
+  const win = from => {
+    const list = outages.filter(o => o.t1 > from);
+    const hours = list.reduce((a, o) => a + (o.t1 - Math.max(o.t0, from)) / 3600000, 0);
+    const wh = list.reduce((a, o) => a + o.wh * (o.hours > 0 ? (o.t1 - Math.max(o.t0, from)) / (o.t1 - o.t0 || 1) : 0), 0);
+    const ah = list.reduce((a, o) => a + o.ah * (o.hours > 0 ? (o.t1 - Math.max(o.t0, from)) / (o.t1 - o.t0 || 1) : 0), 0);
+    let chg = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const p = rows[i - 1];
+      if (p[0] >= from && p[2] > 0 && !p[1]) chg += p[2] * Math.min(rows[i][0] - p[0], CAP) / 3600000;
+    }
+    return { n: list.length, hours, wh, ah, chg };
+  };
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const today = win(midnight.getTime());
+  const week = win(Date.now() - HX_DAYS * 86400000);
+  const full = outages.filter(o => o.fromFull && o.ah > 1);
+  const deepest = full.sort((a, b) => b.ah - a.ah)[0] || null;
+  return { outages, today, week, deepest, first: rows.length ? rows[0][0] : null,
+           avgW: week.hours >= 2 ? week.wh / week.hours : null };
+}
+
+// Typical battery-side draw during outages, learned from the last week (used by the "if the grid drops" estimate)
+let hxTypCache = { t: 0, v: null };
+function hxTypicalW() {
+  if (Date.now() - hxTypCache.t < 60000) return hxTypCache.v;
+  let v = null;
+  try { const a = hxAnalyze(); v = a.avgW && a.avgW > 30 ? Math.round(a.avgW) : null; } catch (e) {}
+  hxTypCache = { t: Date.now(), v };
+  return v;
+}
+
+// ---- charge diary (from the BLE journal, only while the page is open) ----
+function hxUpdateDiary() {
+  let changed = false;
+  for (const [key, arr] of Object.entries(histStore)) {
+    if (!arr || arr.length < 10) continue;
+    const eps = [];
+    let ep = null, lastChg = 0;
+    const close = () => { if (ep) { eps.push(ep); ep = null; } };
+    for (let i = 0; i < arr.length; i++) {
+      const r = arr[i], prev = arr[i - 1];
+      const gap = prev ? r[0] - prev[0] : 0;
+      if (ep && (gap > 15 * 60000 || r[2] < -0.5 || r[0] - lastChg > 30 * 60000)) close();
+      if (r[2] > 0.3) {
+        if (!ep) ep = { t0: r[0], t1: r[0], peak: 0, cell: 0, dEnd: r[3], dMax: 0, bal: 0, maxI: 0 };
+        lastChg = r[0]; ep.t1 = r[0];
+        if (r[5] > ep.peak) { ep.peak = r[5]; ep.cell = r[8]; }
+        ep.dMax = Math.max(ep.dMax, r[3]); ep.maxI = Math.max(ep.maxI, r[2]);
+        ep.dEnd = r[3];                                     // delta at the last moment current was still flowing
+        ep.iEnd = r[2];
+      }
+      if (ep && prev && prev[4] && gap < 60000) ep.bal += gap;
+    }
+    const open = ep; close();
+    const list = hxDiary[key] || (hxDiary[key] = []);
+    for (const e of eps) {
+      if (e.peak < 3.40 || e.t1 - e.t0 < 5 * 60000) continue;   // only charges that reached the top
+      const rec = { t0: e.t0, t1: e.t1, peak: +e.peak.toFixed(3), cell: e.cell, dEnd: e.dEnd, dMax: e.dMax,
+                    bal: Math.round(e.bal / 60000), maxI: +e.maxI.toFixed(1), iEnd: +(e.iEnd || 0).toFixed(1),
+                    bulk: (inv.settings && invNum(inv.settings.bat_maximum_charging_voltage)) || null };
+      const old = list.find(x => Math.abs(x.t0 - e.t0) < 10 * 60000);
+      if (old) {
+        if (e !== open && old.t1 >= e.t1) continue;          // finished episode already stored
+        rec.bulk = old.bulk || rec.bulk;
+        Object.assign(old, rec);
+      } else list.push(rec);
+      changed = true;
+    }
+    list.sort((a, b) => a.t0 - b.t0);
+    if (list.length > 40) list.splice(0, list.length - 40);
+  }
+  if (changed) { try { localStorage.setItem(HX_DIARY_KEY, JSON.stringify(hxDiary)); } catch (e) {} }
+}
+setInterval(hxUpdateDiary, 60000);
+
+// ---- boiler (Cloudflare Worker status) ----
+function hxBoilerUrl() { try { return localStorage.getItem(HX_BOILER_KEY) || ''; } catch (e) { return ''; } }
+function hxBoilerSave() {
+  const v = (document.getElementById('hx-boiler-url').value || '').trim();
+  if (v && !/^https:\/\/[a-z0-9.-]+\.workers\.dev\/\?k=[\w-]+$/i.test(v)) { hxState.boilerErr = 'Це не схоже на адресу статусу'; renderHistoryTab(); return; }
+  try { v ? localStorage.setItem(HX_BOILER_KEY, v) : localStorage.removeItem(HX_BOILER_KEY); } catch (e) {}
+  hxState.boiler = null; hxState.boilerErr = null; hxState.boilerAt = 0;
+  renderHistoryTab(); hxBoilerPoll(true);
+}
+async function hxBoilerPoll(force = false) {
+  const url = hxBoilerUrl();
+  if (!url || hxState.boilerBusy) return;
+  if (!force && Date.now() - hxState.boilerAt < 30000) return;
+  hxState.boilerBusy = true;
+  try {
+    const r = await fetch(url + '&json=1&sock=1');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    hxState.boiler = await r.json(); hxState.boilerErr = null;
+  } catch (e) { hxState.boilerErr = 'Немає звʼязку з автоматикою'; }
+  hxState.boilerAt = Date.now(); hxState.boilerBusy = false;
+  if (activeTab === 'history') renderHistoryTab();
+}
+
+// ---- rendering ----
+const hxOpen = {};
+function hxSection(id, title, badge, body, openByDefault) {
+  const open = hxOpen[id] === undefined ? openByDefault : hxOpen[id];
+  return `<details class="cells-panel hist-fold hx-sec" ${open ? 'open' : ''} ontoggle="hxOpen['${id}']=this.open">
+    <summary class="cells-header"><span class="cells-title">${title} ▾</span>${badge || ''}</summary>
+    <div class="hx-body">${body}</div></details>`;
+}
+const hxKwh = wh => (wh / 1000).toFixed(2) + ' кВт·год';
+const hxDur = h => formatHoursMinutes(h);
+
+function hxRenderBoiler() {
+  const url = hxBoilerUrl();
+  if (!url) {
+    return hxSection('boiler', '🚿 Бойлер', '', `
+      <div class="hx-note">Вставте адресу статусу автоматики — рядок із файлу <b>status_url.txt</b> на компʼютері. Зберігається лише в цьому браузері.</div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <input id="hx-boiler-url" class="hx-input" placeholder="https://….workers.dev/?k=…" autocomplete="off" autocapitalize="off">
+        <button class="icon-btn" style="width:auto;padding:0 12px;font-size:12px;" onclick="hxBoilerSave()">Зберегти</button>
+      </div>${hxState.boilerErr ? `<div class="hx-note" style="color:#fb7185">${hxState.boilerErr}</div>` : ''}`, true);
+  }
+  const b = hxState.boiler;
+  if (!b) return hxSection('boiler', '🚿 Бойлер', '', `<div class="hx-note">${hxState.boilerErr || 'Завантаження…'}</div>
+    <input id="hx-boiler-url" type="hidden" value=""><div class="hx-note"><span class="link" onclick="hxBoilerSave()">Відключити</span></div>`, true);
+  const st = b.st || {}, so = b.sock || {};
+  const ageMin = st.lastRun ? Math.max(0, Math.floor(Date.now() / 60000) - st.lastRun) : null;
+  const alive = ageMin !== null && ageMin <= 3;
+  let state, cls = 'mid';
+  if (so.error) { state = 'Стан невідомий'; }
+  else if (so.online === false) { state = 'Розетка не в мережі'; cls = 'high'; }
+  else if (so.on && so.powerW > 20) { state = `Гріє • ${Math.round(so.powerW)} W`; cls = 'good'; }
+  else if (so.on) { state = 'Увімкнений • не гріє'; cls = 'good'; }
+  else { state = st.want === 'battery' ? 'Вимкнений • будинок на батареї' : (st.want === 'stale' ? 'Вимкнений • немає даних інвертора' : 'Вимкнений'); }
+  const errs = [st.invErr, st.sockErr].filter(Boolean);
+  const body = `
+    <div class="inv-kv">
+      <div class="row"><span>Автоматика</span><b style="color:${alive && !errs.length ? '#34d399' : '#fb7185'}">${alive ? (errs.length ? 'працює, є помилки' : 'працює') : 'не відповідає'}${ageMin !== null ? ` • ${ageMin} хв тому` : ''}</b></div>
+      <div class="row"><span>Режим за інвертором</span><b>${st.want === 'grid' ? 'мережа → бойлер дозволено' : (st.want === 'battery' ? 'батарея → бойлер вимкнено' : (st.want || '—'))}</b></div>
+      ${so.voltage ? `<div class="row"><span>Напруга на розетці</span><b>${Math.round(so.voltage)} V</b></div>` : ''}
+      ${errs.map(e => `<div class="row"><span>Помилка</span><b style="color:#fb7185;white-space:normal;text-align:right">${e}</b></div>`).join('')}
+    </div>
+    <div class="hx-log">${(b.log || []).slice(0, 6).map(l => `<div>${l}</div>`).join('')}</div>
+    <input id="hx-boiler-url" type="hidden" value=""><div class="hx-note"><span class="link" onclick="hxBoilerPoll(true)">Оновити</span> • <span class="link" onclick="hxBoilerSave()">Відключити</span></div>`;
+  return hxSection('boiler', '🚿 Бойлер', `<span class="delta-badge ${cls}">${state}</span>`, body, true);
+}
+
+function hxRenderDiary() {
+  const keys = Object.keys(hxDiary).filter(k => (hxDiary[k] || []).length)
+    .sort((a, b) => (a.startsWith('Sandisolar') ? 0 : 1) - (b.startsWith('Sandisolar') ? 0 : 1));
+  if (!keys.length) {
+    return hxSection('diary', '⚖️ Щоденник заряду', '', `<div class="hx-note">Записів ще немає. Запис зʼявляється, коли сайт відкритий під час заряду і комірка піднімається вище 3.40 V.</div>`, false);
+  }
+  let badge = '';
+  const body = keys.map(k => {
+    const list = hxDiary[k].slice(-8).reverse();
+    const brand = k.split('|')[0];
+    if (!badge) badge = `<span class="delta-badge ${list[0].dEnd <= 80 ? 'mid' : 'high'}">остання Δ ${list[0].dEnd} mV</span>`;
+    return `<div class="hx-sub">${brand}</div>` + list.map(e => `
+      <div class="hx-item">
+        <div class="hx-top"><span>${hxDm(e.t0)} ${hxHm(e.t0)}–${hxHm(e.t1)}${e.bulk ? ` • заряд до ${e.bulk.toFixed(1)} V` : ''}</span><b>пік #${e.cell}: ${e.peak.toFixed(3)} V</b></div>
+        <div class="hx-bot">Δ наприкінці ${e.dEnd} mV (при ${e.iEnd} A) • макс. Δ ${e.dMax} mV • баланс ${e.bal} хв • до ${e.maxI} A</div>
+      </div>`).join('');
+  }).join('');
+  return hxSection('diary', '⚖️ Щоденник заряду', badge, body + `<div class="hx-note">Пишеться лише коли сайт відкритий під час заряду.</div>`, false);
+}
+
+function renderHistoryTab() {
+  const root = document.getElementById('history-panel');
+  if (!root) return;
+  hxUpdateDiary();
+  let html = hxRenderBoiler();
+
+  if (!inv.cfg || !inv.cfg.dev) {
+    html += `<div class="cells-panel"><div class="hx-note">Історія відключень береться з інвертора. <span class="link" onclick="invOpenModal()">Увійти в SmartESS →</span></div></div>`;
+  } else {
+    const a = hxAnalyze();
+    const status = hxState.busy ? 'оновлення…' : (hxState.error ? '⚠️ ' + hxState.error : (hxState.lastFetch ? 'оновлено ' + hxHm(hxState.lastFetch) : ''));
+    // outages
+    const list = a.outages.slice().reverse().slice(0, 12);
+    const outBody = (list.length ? list.map(o => `
+      <div class="hx-item">
+        <div class="hx-top"><span>${hxDm(o.t0)} ${hxHm(o.t0)}–${o.ongoing ? 'триває' : hxHm(o.t1)}</span><b>${hxDur(o.hours)}</b></div>
+        <div class="hx-bot">${hxKwh(o.wh)} з батареї • ${o.ah.toFixed(0)} Ah • у середньому ${Math.round(o.avgW)} W • мін. ${o.minV < 90 ? o.minV.toFixed(1) : '—'} V</div>
+      </div>`).join('') : `<div class="hx-note">За останні ${HX_DAYS} днів відключень не було.</div>`) +
+      `<div class="hx-note">${status}${status ? ' • ' : ''}<span class="link" onclick="hxRefresh(true)">Оновити</span>${a.first ? ` • дані з ${hxDm(a.first)}` : ''}</div>`;
+    const last = a.outages[a.outages.length - 1];
+    html += hxSection('out', '🔌 Відключення', last ? `<span class="delta-badge ${last.ongoing ? 'high' : 'mid'}">${last.ongoing ? 'зараз без мережі' : 'останнє ' + hxDm(last.t0)}</span>` : '', outBody, true);
+
+    // statistics
+    const col = (w) => [`${w.n}`, hxDur(w.hours), hxKwh(w.wh), hxKwh(w.chg), w.hours > 0.2 ? Math.round(w.wh / w.hours) + ' W' : '—', (w.ah / 100).toFixed(2)];
+    const t = col(a.today), w = col(a.week);
+    const names = ['Відключень', 'Без мережі', 'Взято з батареї', 'Повернуто зарядом', 'Середній розряд', 'Циклів (пара 100 Ah)'];
+    html += hxSection('stat', '📈 Статистика', '', `
+      <div class="inv-kv hx-table">
+        <div class="row hx-head"><span></span><b>Сьогодні</b><b>${HX_DAYS} днів</b></div>
+        ${names.map((n, i) => `<div class="row"><span>${n}</span><b>${t[i]}</b><b>${w[i]}</b></div>`).join('')}
+      </div>
+      <div class="hx-note">${a.avgW ? `Прогноз «якщо зникне мережа» рахується за середнім розрядом ${Math.round(a.avgW)} W.` : `Поки мало даних: прогноз «якщо зникне мережа» рахується за ${ETA_HOME_W} W.`}</div>`, false);
+
+    // confirmed capacity
+    const d = a.deepest;
+    const offV = etaParams().offV;
+    const capBody = d ? `
+      <div class="inv-kv">
+        <div class="row"><span>Найглибший розряд від повної</span><b>${d.ah.toFixed(0)} Ah • ${hxKwh(d.wh)}</b></div>
+        <div class="row"><span>Коли</span><b>${hxDm(d.t0)} ${hxHm(d.t0)}–${hxHm(d.t1)}</b></div>
+        <div class="row"><span>Напруга в кінці</span><b>${d.minV.toFixed(1)} V</b></div>
+      </div>
+      <div class="hx-note">${d.minV <= offV + 0.3
+        ? `Розряд дійшов до відсічки інвертора: доступна ємність пари ≈ <b>${d.ah.toFixed(0)} Ah</b>.`
+        : `Підтверджено: пара віддає <b>не менше ${d.ah.toFixed(0)} Ah</b>. Повну ємність буде видно, коли батарея розрядиться до відсічки (${offV} V).`}
+        Рахується за струмом інвертора, точність приблизно ±10%.</div>`
+      : `<div class="hx-note">Ще не було розряду, який почався з повністю зарядженої батареї.</div>`;
+    html += hxSection('cap', '🔋 Реальна ємність', d ? `<span class="delta-badge mid">≥ ${d.ah.toFixed(0)} Ah</span>` : '', capBody, false);
+  }
+  html += hxRenderDiary();
+  const inp = document.getElementById('hx-boiler-url');
+  const typed = inp && inp.type !== 'hidden' ? inp.value : '';
+  const hadFocus = inp && document.activeElement === inp;
+  root.innerHTML = html;
+  uaUnits(root);
+  const inp2 = document.getElementById('hx-boiler-url');
+  if (typed && inp2 && inp2.type !== 'hidden') { inp2.value = typed; if (hadFocus) inp2.focus(); }
+}
+
+setInterval(() => {
+  if (activeTab !== 'history' || document.hidden) return;
+  hxBoilerPoll(); hxRefresh();
+}, 15000);
 
 // Initialize on load: restore cached devices & auto-connect via navigator.bluetooth.getDevices()
 restoreCachedSessions();
