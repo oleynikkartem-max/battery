@@ -3581,11 +3581,17 @@ function hxUpdateDiary() {
       const rec = { t0: e.t0, t1: e.t1, peak: +e.peak.toFixed(3), cell: e.cell, dEnd: e.dEnd, dMax: e.dMax,
                     bal: Math.round(e.bal / 60000), maxI: +e.maxI.toFixed(1), iEnd: +(e.iEnd || 0).toFixed(1),
                     bulk: (inv.settings && invNum(inv.settings.bat_maximum_charging_voltage)) || null };
-      const old = list.find(x => Math.abs(x.t0 - e.t0) < 10 * 60000);
+      // Same charge = overlapping time range. The journal is a ring buffer, so the start of a long charge
+      // can scroll out of it: keep the earliest start and the best values seen so far.
+      const old = list.find(x => e.t0 <= x.t1 + 10 * 60000 && e.t1 >= x.t0 - 10 * 60000);
       if (old) {
-        if (e !== open && old.t1 >= e.t1) continue;          // finished episode already stored
-        rec.bulk = old.bulk || rec.bulk;
-        Object.assign(old, rec);
+        if (old.t1 >= e.t1 && old.t0 <= e.t0) continue;      // nothing new
+        const keepPeak = old.peak > rec.peak;
+        Object.assign(old, rec, {
+          t0: Math.min(old.t0, rec.t0), bulk: old.bulk || rec.bulk,
+          peak: keepPeak ? old.peak : rec.peak, cell: keepPeak ? old.cell : rec.cell,
+          dMax: Math.max(old.dMax, rec.dMax), bal: Math.max(old.bal, rec.bal), maxI: Math.max(old.maxI, rec.maxI)
+        });
       } else list.push(rec);
       changed = true;
     }
