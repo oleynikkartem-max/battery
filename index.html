@@ -2234,6 +2234,7 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
 // Defaults = this inverter's current settings; replaced by live values once read.
 const ETA_DEFAULTS = { offSoc: 15, gridSoc: 20, offV: 25.0, gridV: 26.0, maxChgA: 30, cvMin: 60 };
 const etaState = { ema: null, t: 0, sign: 0 };
+const ETA_HOME_W = 300;   // typical home consumption during an outage (owner's measurement)
 
 // LiFePO4 resting voltage per cell vs SOC (typical curve), 24V bus = 8 cells
 const LFP_OCV = [[0, 2.90], [5, 3.10], [10, 3.18], [15, 3.21], [20, 3.24], [30, 3.26], [40, 3.28],
@@ -2362,7 +2363,9 @@ function computeSystemEta(strings, I, V) {
 
   // ---- Idle: what happens if the grid goes down right now ----
   if (d && (d.loadVA !== null || d.loadW !== null)) {
-    const loadW = Math.max(d.loadW || 0, (d.loadVA || 0) * 0.7);
+    // With the grid present the current load says little (flat may bypass the inverter, boiler runs only on grid):
+    // estimate the outage runtime for the typical home load instead.
+    const loadW = gridOn ? ETA_HOME_W : Math.max(d.loadW || 0, (d.loadVA || 0) * 0.7);
     const drawW = loadW / 0.92 + 40;   // inverter efficiency + ~40 W own consumption
     const floorIdle = Math.max(P.offSoc, socAtVoltageCut(P.offV, drawW / Vb));
     const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - floorIdle / 100 * x.nom), 0);
@@ -2371,7 +2374,7 @@ function computeSystemEta(strings, I, V) {
       cls: '',
       label: gridOn ? '🔋 Якщо зникне мережа:' : '⏱ Час роботи:',
       value: `~${formatHoursMinutes(hrs)}`,
-      sub: `навантаження ~${Math.round(loadW)} W + інвертор • до ${Math.round(floorIdle)}% заряду`
+      sub: (gridOn ? `при типовому споживанні ${ETA_HOME_W} W` : `навантаження ~${Math.round(loadW)} W`) + ` + втрати інвертора • до ${Math.round(floorIdle)}% заряду`
     };
   }
   const hrs300 = (Math.max(0, remAll - P.offSoc / 100 * nomAll) * Vb) / 300;
