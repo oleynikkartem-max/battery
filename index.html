@@ -2151,8 +2151,11 @@ function formatEta(d, shortMode = false) {
     return (shortMode ? '⏱ ~' : '⏱ Залишилось ~') + formatHoursMinutes(hrs);
   }
   if (cur > 0.08) {
-    const hrs = Math.max(0.03, Math.max(0, nom - rem) / cur);
-    return (shortMode ? '⚡ ~' : '⚡ Повний через ~') + formatHoursMinutes(hrs);
+    const soc = (d.soc !== undefined && d.soc !== null) ? d.soc : null;
+    let need = nom - rem;
+    if (need <= 0 && soc !== null) need = (100 - soc) / 100 * nom;   // Ah counter ran past nominal: trust SOC
+    if (need <= 0 || (soc !== null && soc >= 95)) return shortMode ? '⚡ дозаряд' : '⚡ Дозаряд (кінець заряду)';
+    return (shortMode ? '⚡ ~' : '⚡ Повний через ~') + formatHoursMinutes(Math.max(0.03, need / cur));
   }
   return shortMode ? `🔋 ${rem.toFixed(0)} Ah` : '⏱ Режим очікування';
 }
@@ -2283,7 +2286,7 @@ function etaSmooth(I) {
   }
   const dt = (now - etaState.t) / 1000;
   etaState.t = now;
-  etaState.ema += (I - etaState.ema) * (1 - Math.exp(-dt / 180));
+  etaState.ema += (I - etaState.ema) * (1 - Math.exp(-dt / 15));
   return etaState.ema;
 }
 
@@ -2331,7 +2334,7 @@ function computeSystemEta(strings, I, V) {
     const floor = Math.max(socFloor, vFloor);
     const usable = strings.reduce((a, x) => a + Math.max(0, x.remMin - floor / 100 * x.nom), 0);
     const hrs = usable / Math.abs(Iavg);
-    const sub = `при ~${Math.round(Math.abs(Iavg) * Vb)} W (середнє за ~3 хв) • ` + (byVoltage
+    const sub = `при ~${Math.round(Math.abs(Iavg) * Vb)} W (середнє за ~15 с) • ` + (byVoltage
       ? `до ~${Math.round(floor)}%: під навантаженням напруга впаде до ${cutV} V раніше, ніж заряд до ${socFloor}%`
       : `до ${socFloor}% заряду (поріг ${src})`);
     return {
@@ -2351,11 +2354,12 @@ function computeSystemEta(strings, I, V) {
     const tCV = Math.min(P.cvMin / 60, tail / Math.max(0.5, Iavg * 0.35));
     const limited = P.maxChgA && Iavg >= P.maxChgA * 0.9;
     const sub = `~${Iavg.toFixed(1)} A${limited ? ` (ліміт інвертора ${P.maxChgA} A)` : ''}` +
-      (needCC > 0 ? ` • до 95% ~${formatHoursMinutes(tCC)} + витримка напруги` : ` • витримка напруги до ${P.cvMin} хв`);
+      (needCC > 0 ? ` • до 95% ~${formatHoursMinutes(tCC)} + витримка напруги` : (needAll <= 0 ? ' • струм спадає, інвертор тримає напругу' : ` • витримка напруги до ${P.cvMin} хв`));
     return {
       cls: 'charging',
       label: needCC > 0 ? '⚡ До повного заряду:' : '⚡ Дозаряд (витримка):',
-      value: `~${formatHoursMinutes(Math.max(0.03, tCC + tCV))}`,
+      // BMS counters already at/over nominal: only the inverter's voltage hold is left, its end is not predictable
+      value: needAll <= 0 ? `до ${P.cvMin} хв` : `~${formatHoursMinutes(Math.max(0.03, tCC + tCV))}`,
       sub
     };
   }
@@ -2499,6 +2503,8 @@ function renderTopology(list) {
   const totalRemAh = remAhA + remAhB;
   const totalNomAh = (vSandi || vSjy ? 100 : 0) + (stringBComplete ? 100 : 0) || 100;
   const totalKwh = totalRemAh > 0 ? (totalRemAh * 25.6 / 1000) : 2.56;
+  const cutSoc = etaParams().offSoc;
+  const usableKwh = Math.max(0, (totalRemAh > 0 ? totalRemAh : 100) - cutSoc / 100 * totalNomAh) * 25.6 / 1000;
 
   // System-wide remaining time (see computeSystemEta)
   const etaStrings = [];
@@ -2555,9 +2561,9 @@ function renderTopology(list) {
           <div class="bus-sub">${currentSrc}</div>
         </div>
         <div class="bus-item">
-          <div class="bus-label">Запас енергії</div>
-          <div class="bus-val">${totalKwh.toFixed(2)} кВт·год</div>
-          <div class="bus-sub">Залишок: ${totalRemAh > 0 ? totalRemAh.toFixed(0) : '100'} Ah</div>
+          <div class="bus-label">Запас до відсічки</div>
+          <div class="bus-val">${usableKwh.toFixed(2)} кВт·год</div>
+          <div class="bus-sub">до ${cutSoc}% • до 0%: ${totalKwh.toFixed(2)}</div>
         </div>
         <div class="bus-item">
           <div class="bus-label">Ємність 24V</div>
@@ -2938,14 +2944,14 @@ function renderInverterBlock(bmsBusV) {
         <div class="bus-sub">${gridOn ? (d.gridHz ? d.gridHz.toFixed(1) + ' Hz' : '') : 'автономно'}</div>
       </div>
       <div class="flow-item ${d.loadVA > 20 ? 'load' : ''}">
-        <div class="bus-label">🏠 Дім</div>
+        <div class="bus-label">🏠 Споживання</div>
         <div class="bus-val">${loadVal}</div>
-        <div class="bus-sub">${d.loadPct !== null ? d.loadPct + '%' : ''}</div>
+        <div class="bus-sub">${d.loadPct !== null ? d.loadPct + '% інвертора' : ''}</div>
       </div>
       <div class="flow-item ${d.batA > 0.2 ? 'chg' : (d.batA < -0.2 ? 'dis' : '')}">
-        <div class="bus-label">🔋 АКБ</div>
+        <div class="bus-label">🔋 ${batW > 5 ? 'Заряд АКБ' : (batW < -5 ? 'Розряд АКБ' : 'АКБ')}</div>
         <div class="bus-val">${batW !== null ? (batW > 0 ? '+' : '') + Math.round(batW) + ' W' : '—'}</div>
-        <div class="bus-sub">${d.batV !== null ? d.batV.toFixed(1) + ' V' : ''}</div>
+        <div class="bus-sub">${d.batV !== null ? 'за інв. ' + d.batV.toFixed(1) + ' V' : ''}</div>
       </div>
     </div>`;
 
@@ -2953,7 +2959,7 @@ function renderInverterBlock(bmsBusV) {
   if (d.batV && bmsBusV) {
     const dv = d.batV - bmsBusV;
     const cls = Math.abs(dv) <= 0.3 ? 'dv-ok' : (Math.abs(dv) <= 0.6 ? 'dv-warn' : 'dv-bad');
-    dvTxt = ` • <span class="${cls}" title="Напруга АКБ: інвертор мінус BMS">Δ інвертор/BMS ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V</span>`;
+    dvTxt = ` • <span class="${cls}" title="Напруга АКБ: інвертор мінус BMS">інвертор бачить ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V до BMS</span>`;
   }
   const line = `
     <div class="inv-line">
