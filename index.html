@@ -3210,7 +3210,11 @@ function renderCardsInner() {
     return;
   }
 
-  container.innerHTML = list.map(s => {
+  // Fixed order on the detail tab: Sandisolar, SJY, Humsienk #1, Humsienk #2, then anything else
+  const BRAND_ORDER = { Sandisolar: 0, SJY: 1, Humsienk: 2 };
+  const ordered = [...list].sort((a, b) =>
+    ((BRAND_ORDER[a.brand] ?? 9) - (BRAND_ORDER[b.brand] ?? 9)) || ((a.createdAt || 0) - (b.createdAt || 0)));
+  container.innerHTML = ordered.map(s => {
     const d = s.data || {};
     const cells = d.cells || [];
     let minV = null, maxV = null, deltaMv = null, minIdx = -1, maxIdx = -1;
