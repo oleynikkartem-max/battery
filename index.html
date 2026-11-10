@@ -2929,7 +2929,10 @@ function renderInverterBlock(bmsBusV) {
   const w = v => (v === null || v === undefined) ? '—' : `${Math.round(v)} W`;
   const batW = (d.batV !== null && d.batA !== null) ? d.batV * d.batA : null;
   const gridOn = d.gridV && d.gridV > 100;
-  const loadVal = (d.loadW !== null && d.loadW > 0) ? w(d.loadW) : (d.loadVA !== null ? `${Math.round(d.loadVA)} VA` : '—');
+  // Grid present and no real power drawn from the inverter output: the flat is switched straight to the grid
+  // (the leftover ~90 VA is the inverter's own output filter, not a load)
+  const bypassed = gridOn && d.loadW !== null && d.loadW < 10;
+  const loadVal = bypassed ? 'напряму' : (d.loadW !== null && d.loadW > 0) ? w(d.loadW) : (d.loadVA !== null ? `${Math.round(d.loadVA)} VA` : '—');
 
   const flow = `
     <div class="flow-bar">
@@ -2943,10 +2946,10 @@ function renderInverterBlock(bmsBusV) {
         <div class="bus-val">${gridOn ? Math.round(d.gridV) + ' V' : 'Немає'}</div>
         <div class="bus-sub">${gridOn ? (d.gridHz ? d.gridHz.toFixed(1) + ' Hz' : '') : 'автономно'}</div>
       </div>
-      <div class="flow-item ${d.loadVA > 20 ? 'load' : ''}">
+      <div class="flow-item ${!bypassed && d.loadVA > 20 ? 'load' : ''}">
         <div class="bus-label">🏠 Споживання</div>
         <div class="bus-val">${loadVal}</div>
-        <div class="bus-sub">${d.loadPct !== null ? d.loadPct + '% інвертора' : ''}</div>
+        <div class="bus-sub">${bypassed ? 'повз інвертор' : (d.loadPct !== null ? d.loadPct + '% інвертора' : '')}</div>
       </div>
       <div class="flow-item ${d.batA > 0.2 ? 'chg' : (d.batA < -0.2 ? 'dis' : '')}">
         <div class="bus-label">🔋 ${batW > 5 ? 'Заряд АКБ' : (batW < -5 ? 'Розряд АКБ' : 'АКБ')}</div>
