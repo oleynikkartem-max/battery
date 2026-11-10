@@ -1138,7 +1138,7 @@
     }
 
     /* ===== Inverter (SmartESS cloud) — same language as .bus-bar ===== */
-    .flow-bar { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:10px 4px; margin-bottom:12px; }
+    .flow-bar { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); background:var(--card-inner); border:1px solid var(--border); border-radius:14px; padding:10px 4px; margin-bottom:12px; }
     .flow-item { text-align:center; min-width:0; padding:0 4px; border-right:1px solid var(--border); }
     .flow-item:last-child { border-right:0; }
     .flow-item .bus-val { font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .3s; }
@@ -2189,8 +2189,6 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
   const soc = d.soc !== undefined ? d.soc : 0;
   const deltaMv = getCellDeltaMv(session);
   const cur = d.current !== undefined ? `${d.current >= 0 ? '+' : ''}${d.current.toFixed(1)} A` : '—';
-  const pwr = d.power !== undefined ? `${Math.round(Math.abs(d.power))} W` : '';
-  const etaShort = formatEta(d, true);
   const stateCls = !session.connected
     ? 'disconnected-slot'
     : (isStandby ? 'standby-conn' : 'connected');
@@ -2219,10 +2217,6 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
           <div class="vis-bar-fill" style="width:${Math.min(100, Math.max(4, soc))}%"></div>
         </div>
 
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <span style="font-size:12px; font-weight:800; color:#e2e8f0;">${etaShort}</span>
-          <span style="font-size:11px; color:var(--muted); font-weight:600;">${pwr}</span>
-        </div>
       </div>
 
       <div class="vis-meta-grid">
@@ -2470,12 +2464,12 @@ function renderTopology(list) {
   if (anyActive) {
     if (totalCurrent > 0.08) {
       flowClass = 'charging';
-      flowText = `⚡ Зарядка +${Math.round(totalPower)} W`;
+      flowText = `⚡ Зарядка +${Math.round(totalPower)} W • ${totalCurrent.toFixed(1)} A`;
     } else if (totalCurrent < -0.08) {
       flowClass = 'discharging';
-      flowText = `🏠 Споживання ${Math.round(Math.abs(totalPower))} W`;
+      flowText = `🔋 Розряд ${Math.round(Math.abs(totalPower))} W • ${Math.abs(totalCurrent).toFixed(1)} A`;
     } else {
-      flowText = 'Спокій • 0 W';
+      flowText = 'Спокій';
     }
   }
 
@@ -2532,7 +2526,6 @@ function renderTopology(list) {
       <div class="inv-top">
         <div>
           <div class="inv-title">🔌 Інвертор • Шина 24V</div>
-          <div class="inv-sub">Паралельне об'єднання Гілки А + Гілки Б</div>
         </div>
         <span class="topo-mode-badge ${stringBComplete ? 'full' : ''}">
           ${stringBComplete ? '24V 200Ah (2S2P)' : '24V 100Ah + Резерв'}
@@ -2547,30 +2540,18 @@ function renderTopology(list) {
         <div class="inv-power-pill ${flowClass}">${flowText}</div>
       </div>
 
-      ${renderInverterBlock(bmsBusV)}
+      ${renderInverterBlock(bmsBusV, `
+      <div class="flow-item">
+        <div class="bus-label">🔋 Запас</div>
+        <div class="bus-val">${usableKwh.toFixed(2)} кВт·год</div>
+        <div class="bus-sub">до відсічки ${cutSoc}%</div>
+      </div>`)}
 
       <div class="inv-eta-banner ${sysEtaCls}">
         <span>${sysEtaLabel}${sysEtaSub ? `<span class="eta-sub">${sysEtaSub}</span>` : ''}</span>
         <span class="inv-eta-val">${sysEtaValue}</span>
       </div>
 
-      <div class="bus-bar">
-        <div class="bus-item">
-          <div class="bus-label">Загальний струм</div>
-          <div class="bus-val">${anyActive ? (totalCurrent >= 0 ? '+' : '') + totalCurrent.toFixed(2) + ' A' : '—'}</div>
-          <div class="bus-sub">${currentSrc}</div>
-        </div>
-        <div class="bus-item">
-          <div class="bus-label">Запас до відсічки</div>
-          <div class="bus-val">${usableKwh.toFixed(2)} кВт·год</div>
-          <div class="bus-sub">до ${cutSoc}% • до 0%: ${totalKwh.toFixed(2)}</div>
-        </div>
-        <div class="bus-item">
-          <div class="bus-label">Ємність 24V</div>
-          <div class="bus-val">${stringBComplete ? '200' : '100'} / 200 Ah</div>
-          <div class="bus-sub">${stringBComplete ? 'Обидві пари' : '1 пара в роботі'}</div>
-        </div>
-      </div>
       ${invMoreHtml}
     </div>
 
@@ -2916,18 +2897,17 @@ function invAgeText(ts) {
   return m < 1 ? 'щойно' : (m < 60 ? `${m} хв тому` : `${Math.round(m / 60)} год тому`);
 }
 
-function renderInverterBlock(bmsBusV) {
+function renderInverterBlock(bmsBusV, reserveItem = '') {
   invMoreHtml = '';
   if (!inv.cfg || !inv.cfg.dev) {
-    return `<div class="inv-line"><span>Інвертор не підключено</span><span class="link" onclick="invOpenModal()">Увійти в SmartESS →</span></div>`;
+    return `<div class="flow-bar" style="grid-template-columns:1fr">${reserveItem}</div><div class="inv-line"><span>Інвертор не підключено</span><span class="link" onclick="invOpenModal()">Увійти в SmartESS →</span></div>`;
   }
   const d = inv.data;
   if (!d) {
-    return `<div class="inv-line"><span>${inv.error ? '⚠️ ' + inv.error : 'Інвертор: завантаження…'}</span><span class="link" onclick="invPoll(true)">Оновити</span></div>`;
+    return `<div class="flow-bar" style="grid-template-columns:1fr">${reserveItem}</div><div class="inv-line"><span>${inv.error ? '⚠️ ' + inv.error : 'Інвертор: завантаження…'}</span><span class="link" onclick="invPoll(true)">Оновити</span></div>`;
   }
 
   const w = v => (v === null || v === undefined) ? '—' : `${Math.round(v)} W`;
-  const batW = (d.batV !== null && d.batA !== null) ? d.batV * d.batA : null;
   const gridOn = d.gridV && d.gridV > 100;
   // Grid present and no real power drawn from the inverter output: the flat is switched straight to the grid
   // (the leftover ~90 VA is the inverter's own output filter, not a load)
@@ -2936,39 +2916,27 @@ function renderInverterBlock(bmsBusV) {
 
   const flow = `
     <div class="flow-bar">
-      <div class="flow-item ${d.pvW > 5 ? 'sun' : ''}">
-        <div class="bus-label">☀️ Сонце</div>
-        <div class="bus-val">${w(d.pvW)}</div>
-        <div class="bus-sub">${d.pvV !== null ? d.pvV.toFixed(0) + ' V' : ''}</div>
-      </div>
-      <div class="flow-item ${gridOn ? 'grid' : ''}">
+      <div class="flow-item ${gridOn ? 'grid' : 'dis'}">
         <div class="bus-label">🔌 Мережа</div>
         <div class="bus-val">${gridOn ? Math.round(d.gridV) + ' V' : 'Немає'}</div>
-        <div class="bus-sub">${gridOn ? (d.gridHz ? d.gridHz.toFixed(1) + ' Hz' : '') : 'автономно'}</div>
+        <div class="bus-sub">${gridOn ? 'підключена' : 'від батареї'}</div>
       </div>
       <div class="flow-item ${!bypassed && d.loadVA > 20 ? 'load' : ''}">
         <div class="bus-label">🏠 Споживання</div>
         <div class="bus-val">${loadVal}</div>
         <div class="bus-sub">${bypassed ? 'повз інвертор' : (d.loadPct !== null ? d.loadPct + '% інвертора' : '')}</div>
-      </div>
-      <div class="flow-item ${d.batA > 0.2 ? 'chg' : (d.batA < -0.2 ? 'dis' : '')}">
-        <div class="bus-label">🔋 ${batW > 5 ? 'Заряд АКБ' : (batW < -5 ? 'Розряд АКБ' : 'АКБ')}</div>
-        <div class="bus-val">${batW !== null ? (batW > 0 ? '+' : '') + Math.round(batW) + ' W' : '—'}</div>
-        <div class="bus-sub">${d.batV !== null ? 'за інв. ' + d.batV.toFixed(1) + ' V' : ''}</div>
-      </div>
+      </div>${reserveItem}
     </div>`;
 
-  let dvTxt = '';
-  if (d.batV && bmsBusV) {
-    const dv = d.batV - bmsBusV;
-    const cls = Math.abs(dv) <= 0.3 ? 'dv-ok' : (Math.abs(dv) <= 0.6 ? 'dv-warn' : 'dv-bad');
-    dvTxt = ` • <span class="${cls}" title="Напруга АКБ: інвертор мінус BMS">інвертор бачить ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V до BMS</span>`;
-  }
   const line = `
     <div class="inv-line">
-      <span><b>${d.mode || 'Інвертор'}</b>${d.tInv !== null ? ' • ' + d.tInv + '°C' : ''}${dvTxt}</span>
+      <span><b>${d.mode || 'Інвертор'}</b></span>
       <span>${inv.error ? '⚠️' : invAgeText(d.ts)}</span>
     </div>`;
+
+  // Diagnostics that used to sit on the main card
+  const diag = (d.batV && bmsBusV)
+    ? `<div class="row"><span>Напруга АКБ: інвертор / BMS</span><b>${d.batV.toFixed(1)} / ${bmsBusV.toFixed(2)} V (${d.batV - bmsBusV >= 0 ? '+' : ''}${(d.batV - bmsBusV).toFixed(2)})</b></div>` : '';
 
   let settings = '';
   const s = inv.settings;
@@ -2989,7 +2957,7 @@ function renderInverterBlock(bmsBusV) {
       </div>
       <div class="inv-note">⚖️ Якщо комірка вгорі тікає до 3.60 V і вище, а BMS обриває заряд — напругу заряду не піднімати, а зменшити макс. струм заряду.</div>`;
   }
-  const raw = `<div class="inv-kv">${d.raw.map(([k, v, u]) => `<div class="row"><span>${k}</span><b>${v}${u ? ' ' + u : ''}</b></div>`).join('')}</div>`;
+  const raw = `<div class="inv-kv">${diag}${d.raw.filter(([k]) => !/панел|сонячн/i.test(k)).map(([k, v, u]) => `<div class="row"><span>${k}</span><b>${v}${u ? ' ' + u : ''}</b></div>`).join('')}</div>`;
 
   invMoreHtml = `
     <details class="inv-more" ${invMoreOpen ? 'open' : ''} ontoggle="invMoreOpen=this.open">
