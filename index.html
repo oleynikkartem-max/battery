@@ -666,6 +666,13 @@
       gap: 16px;
     }
 
+    .str-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0; }
+    .str-chip { font-size:11px; font-weight:800; color:var(--muted); white-space:nowrap; }
+    .str-chip.on { color:#34d399; } .str-chip.off { color:#fbbf24; }
+    .str-sel { background:transparent; border:0; color:var(--muted); font-size:10.5px; text-align:right; padding:0; max-width:130px; }
+    .str-hint { font-size:11.5px; line-height:1.4; margin-top:10px; padding:8px 10px; border-radius:10px; background:var(--card-inner); border:1px solid var(--border); }
+    .str-hint.ok { color:#34d399; } .str-hint.warn { color:#fbbf24; }
+    .add-dev-btn { width:100%; height:auto; padding:12px; margin:4px 0 14px; font-size:13px; font-weight:700; border-radius:14px; }
     .empty-state {
       background: var(--card);
       border: 1px dashed rgba(255, 255, 255, 0.14);
@@ -1214,33 +1221,13 @@
       <div class="app-icon">⚡</div>
       <div>
         <h1>BMS Studio</h1>
-        <div class="header-sub">Домашня система 24V • 2S2P (200Ah)</div>
+        <div class="header-sub" id="header-sub">Домашня система 24V</div>
       </div>
     </div>
     <div class="live-badge" onclick="tryAutoConnectRemembered(true)" title="Оновити / підключити збережені АКБ">
       <span class="pulse-dot"></span>
       <span id="live-status-text">НАЖИВО 2с</span>
     </div>
-  </div>
-
-  <!-- Quick BLE Connect Buttons -->
-  <div class="connect-bar">
-    <button id="btn-sandisolar" class="connect-btn" onclick="connectBattery('sandisolar')">
-      <span>Sandisolar</span>
-      <span class="sub">Гілка А • 1/2</span>
-    </button>
-    <button id="btn-sjy" class="connect-btn" onclick="connectBattery('sjy')">
-      <span>SJY</span>
-      <span class="sub">Гілка А • 2/2</span>
-    </button>
-    <button id="btn-humsienk" class="connect-btn" onclick="connectBattery('humsienk')">
-      <span>Humsienk</span>
-      <span class="sub">Гілка Б • 1/2</span>
-    </button>
-    <button class="connect-btn" onclick="connectBattery('all')">
-      <span>+ Додати</span>
-      <span class="sub">Всі BLE</span>
-    </button>
   </div>
 
   <!-- 2-Tab Switcher -->
@@ -2239,7 +2226,7 @@ function renderVisualBatterySlot(session, title, poleText, subtitle, connectMode
         <div class="vis-bat-top">
           <span class="vis-bat-name">
             <span class="dot ${dotCls}"></span>
-            ${session.brand}
+            ${title}
           </span>
           <span class="vis-pole">${poleText}</span>
         </div>
@@ -2418,6 +2405,65 @@ function computeSystemEta(strings, I, V) {
   return { cls: '', label: '⏱ Резерв:', value: `~${formatHoursMinutes(hrs300)}`, sub: `оцінка при 300 W • до ${P.offSoc}% заряду` };
 }
 
+// ---- Is string B (Humsienk pair) actually wired in parallel to the inverter bus? ----
+// An unconnected string carries no current, and parallel strings are forced to the same voltage.
+// The decision needs ~20 s of consistent evidence; at rest the last known state is kept.
+const STRB_KEY = 'bms_studio_strB_v1';
+let strB = { auto: null, manual: null, pend: null, pendAt: 0 };
+try { strB = Object.assign(strB, JSON.parse(localStorage.getItem(STRB_KEY) || '{}')); } catch (e) {}
+function strBSave() { try { localStorage.setItem(STRB_KEY, JSON.stringify({ auto: strB.auto, manual: strB.manual })); } catch (e) {} }
+function strBSetManual(v) { strB.manual = v || null; strBSave(); renderCards(); }
+
+function strBDetect({ vA, iA, aOk, vB, iB, bOk }) {
+  if (!bOk) return;
+  let ev = null;
+  if (Math.abs(iB) >= 0.5) ev = 'on';                                    // current flows -> wired to something
+  else {
+    let iRef = aOk ? iA : null;
+    if (iRef === null && inv.data && inv.data.batA !== null && Date.now() - (inv.data.ts || 0) < 7 * 60000) iRef = inv.data.batA;
+    if (iRef !== null && Math.abs(iRef) >= 3) ev = 'off';               // bus works hard, string B idle
+  }
+  if (aOk && Math.abs(iA) < 2 && Math.abs(vA - vB) > 0.5) ev = 'off';   // at rest parallel strings can't differ
+  if (!ev || ev === strB.auto) { strB.pend = null; return; }
+  if (strB.pend !== ev) { strB.pend = ev; strB.pendAt = Date.now(); return; }
+  if (Date.now() - strB.pendAt >= 20000) { strB.auto = ev; strB.pend = null; strBSave(); }
+}
+function strBState() { return strB.manual || strB.auto; }   // 'on' | 'off' | null (unknown)
+
+function renderStringCard(o) {
+  const st = o.state;   // 'on' | 'off' | null
+  const chip = st === 'on' ? '<span class="str-chip on">● в роботі</span>'
+    : st === 'off' ? '<span class="str-chip off">○ не підключена</span>'
+    : '<span class="str-chip">◌ не визначено</span>';
+  const select = o.manualSel === undefined ? '' : `
+    <select class="str-sel" onchange="strBSetManual(this.value)" title="Як визначати підключення до інвертора">
+      <option value="" ${!o.manualSel ? 'selected' : ''}>авто</option>
+      <option value="on" ${o.manualSel === 'on' ? 'selected' : ''}>вручну: підключена</option>
+      <option value="off" ${o.manualSel === 'off' ? 'selected' : ''}>вручну: не підключена</option>
+    </select>`;
+  return `
+      <div class="string-card ${st === 'on' ? 'active-string' : 'standby-string'}">
+        <div class="string-head">
+          <div>
+            <div class="string-title">${o.icon} ${o.title}</div>
+            <div class="string-sub">${o.sub}</div>
+          </div>
+          <div class="str-right">
+            <span class="string-badge ${st === 'on' ? '' : 'standby'}">${o.volt ? o.volt.toFixed(2) + ' V' : '—'}</span>
+            ${chip}${select}
+          </div>
+        </div>
+        <div class="series-visual">
+          <div class="series-pair-grid">${o.slots}</div>
+          <div class="balancer-bridge ${o.balCls}">
+            <div class="bal-left"><span>${o.balIcon}</span><span>${o.balLabel}</span></div>
+            <div class="bal-right">${o.balText}</div>
+          </div>
+          ${o.hint || ''}
+        </div>
+      </div>`;
+}
+
 function renderTopology(list) {
   const panel = document.getElementById('topology-panel');
   const { sandi, sjy, hs1, hs2 } = getTopologySlots(list);
@@ -2460,23 +2506,40 @@ function renderTopology(list) {
     stringBCurrent = hs1.data.current;
   }
   const stringBPower = (hs1 ? (hs1.data.power || 0) : 0) + (hs2 ? (hs2.data.power || 0) : 0);
+  const fresh = x => x && x.connected && x.data && x.data.current !== undefined;
+  strBDetect({ vA: stringAVolt, iA: stringACurrent, aOk: stringAComplete && fresh(sandi) && fresh(sjy),
+               vB: stringBVolt, iB: stringBCurrent, bOk: stringBComplete && fresh(hs1) && fresh(hs2) });
+  const stringBState = strBState();                    // wiring state is remembered even if a BMS is out of BLE range
+  const stringBActive = stringBState === 'on';
+  const stringBUse = stringBActive && stringBComplete;   // its numbers can only be summed when both BMS are read
 
   let balBCls = 'inactive';
-  let balBText = 'Очікується 2-й Humsienk для пари 24V';
+  let balBText = 'Підключіть обидва АКБ гілки Б';
   if (stringBComplete) {
     const balBDeltaMv = Math.round(Math.abs(vHs1 - vHs2) * 1000);
     balBCls = balBDeltaMv <= 60 ? '' : (balBDeltaMv <= 220 ? 'warn' : 'bad');
     balBText = `Δ між АКБ: ${(balBDeltaMv / 1000).toFixed(2)} V (${balBDeltaMv} mV)`;
   }
 
+  // Before wiring string B in parallel: the strings should be within ~0.2 V, otherwise a big inrush current
+  let strBHint = '';
+  if (stringBComplete && !stringBActive && stringAComplete) {
+    const dv = stringBVolt - stringAVolt;
+    const okDv = Math.abs(dv) <= 0.2;
+    const loadNote = Math.abs(stringACurrent) >= 2 ? ' (гілка А під струмом — точніше видно в спокої)' : '';
+    strBHint = `<div class="str-hint ${okDv ? 'ok' : 'warn'}">${okDv
+      ? `✅ Різниця з гілкою А ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V — можна підключати паралельно`
+      : `⚠️ Різниця з гілкою А ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} V — вирівняйте до 0.2 V перед підключенням (зарядіть обидві до повного)`}${loadNote}</div>`;
+  }
+
   // 24V Main Inverter Bus Summary
   let busVoltNum = null;
   let busVoltSuffix = '';
-  if (stringAComplete && stringBComplete) {
+  if (stringAComplete && stringBUse) {
     busVoltNum = (stringAVolt + stringBVolt) / 2;
   } else if (stringAComplete) {
     busVoltNum = stringAVolt;
-  } else if (stringBComplete) {
+  } else if (stringBUse) {
     busVoltNum = stringBVolt;
   } else if (vSandi > 0 || vSjy > 0) {
     busVoltNum = vSandi + vSjy;
@@ -2484,9 +2547,9 @@ function renderTopology(list) {
   }
 
   const bmsBusV = busVoltNum;
-  let anyActive = Boolean(vSandi || vSjy || stringBComplete);
-  let totalCurrent = stringACurrent + (stringBComplete ? stringBCurrent : 0);
-  let totalPower = stringAPower + (stringBComplete ? stringBPower : 0);
+  let anyActive = Boolean(vSandi || vSjy || stringBUse);
+  let totalCurrent = stringACurrent + (stringBUse ? stringBCurrent : 0);
+  let totalPower = stringAPower + (stringBUse ? stringBPower : 0);
   let currentSrc = 'Гілка А + Б';
 
   // No BMS on BLE right now: fall back to what the inverter sees on the 24V bus
@@ -2526,7 +2589,7 @@ function renderTopology(list) {
   }
 
   let remAhB = 0;
-  if (stringBComplete) {
+  if (stringBUse) {
     remAhB = Math.min(getEffectiveRemAh(hs1.data), getEffectiveRemAh(hs2.data));
   }
 
@@ -2537,7 +2600,7 @@ function renderTopology(list) {
   }
 
   const totalRemAh = remAhA + remAhB;
-  const totalNomAh = (vSandi || vSjy ? 100 : 0) + (stringBComplete ? 100 : 0) || 100;
+  const totalNomAh = (vSandi || vSjy ? 100 : 0) + (stringBUse ? 100 : 0) || 100;
   const totalKwh = totalRemAh > 0 ? (totalRemAh * 25.6 / 1000) : 2.56;
   const cutSoc = etaParams().offSoc;
   const usableKwh = Math.max(0, (totalRemAh > 0 ? totalRemAh : 100) - cutSoc / 100 * totalNomAh) * 25.6 / 1000;
@@ -2552,7 +2615,7 @@ function renderTopology(list) {
   if (stringAComplete) etaStrings.push(strOf(sandi, sjy));
   else if (vSandi > 0) etaStrings.push(strOf(sandi));
   else if (vSjy > 0) etaStrings.push(strOf(sjy));
-  if (stringBComplete) etaStrings.push(strOf(hs1, hs2));
+  if (stringBUse) etaStrings.push(strOf(hs1, hs2));
   if (!etaStrings.length && inv.data && inv.data.batSoc !== null && inv.data.batSoc !== undefined) {
     etaStrings.push({ nom: 100, remMin: inv.data.batSoc, remMax: inv.data.batSoc });  // inverter SOC fallback
   }
@@ -2562,6 +2625,9 @@ function renderTopology(list) {
     : { cls: '', label: '⏱ Час роботи при поточному навантаженні:', value: '—', sub: '' };
   const sysEtaCls = eta.cls, sysEtaLabel = eta.label, sysEtaValue = eta.value, sysEtaSub = eta.sub;
 
+  const hs = document.getElementById('header-sub');
+  if (hs) hs.textContent = stringBActive ? 'Домашня система 24V • 2 гілки, 200Ah' : 'Домашня система 24V • 100Ah';
+
   panel.innerHTML = `
     <!-- INVERTER 24V MAIN BUS -->
     <div class="inverter-hero">
@@ -2569,8 +2635,8 @@ function renderTopology(list) {
         <div>
           <div class="inv-title">🔌 Інвертор • Шина 24V</div>
         </div>
-        <span class="topo-mode-badge ${stringBComplete ? 'full' : ''}">
-          ${stringBComplete ? '24V 200Ah (2S2P)' : '24V 100Ah + Резерв'}
+        <span class="topo-mode-badge ${stringBActive ? 'full' : ''}">
+          ${stringBActive ? '24V 200Ah' : '24V 100Ah'}
         </span>
       </div>
 
@@ -2599,70 +2665,27 @@ function renderTopology(list) {
 
     <!-- PARALLEL STRINGS A & B -->
     <div class="strings-wrap">
-      <!-- STRING A -->
-      <div class="string-card active-string">
-        <div class="string-head">
-          <div>
-            <div class="string-title">⚡ Гілка А • Основна пара 24V</div>
-            <div class="string-sub">Sandisolar + SJY з'єднані послідовно (12V + 12V = 24V 100Ah)</div>
-          </div>
-          <span class="string-badge">
-            ${(vSandi || vSjy) ? `${stringAVolt.toFixed(2)} V` : '24V 100Ah'}
-          </span>
-        </div>
-
-        <div class="series-visual">
-          <div class="series-pair-grid">
-            ${renderVisualBatterySlot(sandi, 'Sandisolar', '+ 24V (1/2)', 'HL12100 • 12V 100Ah', 'sandisolar', false)}
-            ${renderVisualBatterySlot(sjy, 'SJY', '— 0V (2/2)', 'DP04S007 • 12V 100Ah', 'sjy', false)}
-          </div>
-
-          <div class="balancer-bridge ${balACls}">
-            <div class="bal-left">
-              <span>⚖️</span>
-              <span>Активний балансир 24V</span>
-            </div>
-            <div class="bal-right">${balAText}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- STRING B -->
-      <div class="string-card ${stringBComplete ? 'active-string' : 'standby-string'}">
-        <div class="string-head">
-          <div>
-            <div class="string-title">🔋 Гілка Б • Друга пара 24V (Humsienk)</div>
-            <div class="string-sub">
-              ${stringBComplete
-                ? 'Humsienk #1 + #2 послідовно (Паралельно з Гілкою А -> 200Ah)'
-                : 'Humsienk #1 зараз стоїть окремо • Чекає 2-й Humsienk для 24V пари'}
-            </div>
-          </div>
-          <span class="string-badge ${stringBComplete ? '' : 'standby'}">
-            ${stringBComplete ? `${stringBVolt.toFixed(2)} V` : (vHs1 ? `Резерв ${vHs1.toFixed(2)}V` : 'Очікує пару')}
-          </span>
-        </div>
-
-        <div class="series-visual">
-          <div class="series-pair-grid">
-            ${renderVisualBatterySlot(hs1, 'Humsienk #1', stringBComplete ? '+ 24V (1/2)' : 'Резерв 12V', 'HS0302 • Поки стоїть окремо', 'humsienk', !stringBComplete)}
-            ${renderVisualBatterySlot(hs2, 'Humsienk #2', '— 0V (2/2)', '📦 В дорозі • Підключити для 24V 200Ah', 'humsienk', false)}
-          </div>
-
-          <div class="balancer-bridge ${balBCls}">
-            <div class="bal-left">
-              <span>${stringBComplete ? '⚖️' : '🔗'}</span>
-              <span>Послідовна шина Гілки Б</span>
-            </div>
-            <div class="bal-right">${balBText}</div>
-          </div>
-        </div>
-      </div>
+      ${renderStringCard({
+        icon: '⚡', title: 'Гілка А · Sandisolar + SJY', sub: '2 × 12V послідовно = 24V 100Ah',
+        state: 'on', volt: (vSandi || vSjy) ? stringAVolt : 0,
+        slots: renderVisualBatterySlot(sandi, 'Sandisolar', '1/2', 'HL12100 • 12V 100Ah', 'sandisolar', false)
+             + renderVisualBatterySlot(sjy, 'SJY', '2/2', 'DP04S007 • 12V 100Ah', 'sjy', false),
+        balCls: balACls, balIcon: '⚖️', balLabel: 'Балансир', balText: balAText
+      })}
+      ${renderStringCard({
+        icon: '🔋', title: 'Гілка Б · Humsienk', sub: '2 × 12V послідовно = 24V 100Ah',
+        state: stringBState, manualSel: strB.manual || '', volt: stringBComplete ? stringBVolt : 0,
+        slots: renderVisualBatterySlot(hs1, 'Humsienk 1', '1/2', 'Humsienk • 12V 100Ah', 'humsienk', false)
+             + renderVisualBatterySlot(hs2, 'Humsienk 2', '2/2', 'Humsienk • 12V 100Ah', 'humsienk', false),
+        balCls: balBCls, balIcon: stringBActive ? '⚖️' : '🔗', balLabel: stringBActive ? 'Балансир' : 'Між АКБ', balText: balBText,
+        hint: strBHint
+      })}
     </div>
   `;
 }
 
 function updateTopHighlights(list) {
+  // (top connect buttons were removed; only the counters/header are updated here)
   const brands = new Set(list.filter(s => s.connected).map(s => s.brand.toLowerCase()));
   const map = { sandisolar: 'btn-sandisolar', humsienk: 'btn-humsienk', sjy: 'btn-sjy' };
   for (const [key, btnId] of Object.entries(map)) {
@@ -3195,11 +3218,9 @@ function getRoleBadge(s, slots) {
     return { cls: '', text: '🔗 Гілка А (24V) • Послідовно 2/2 з Sandisolar + Балансир' };
   }
   if (s.brand === 'Humsienk') {
-    if (slots.hs1 && slots.hs2) {
-      const idx = (slots.hs1.id === s.id) ? '1/2' : '2/2';
-      return { cls: '', text: `🔗 Гілка Б (24V) • Humsienk Послідовно ${idx} (В паралелі)` };
-    }
-    return { cls: 'role-b', text: '⏳ Гілка Б • Humsienk #1 (Поки стоїть окремо — чекає пару до 24V)' };
+    const idx = slots.hs1 && slots.hs1.id === s.id ? 1 : 2;
+    const on = strBState() === 'on';
+    return { cls: on ? '' : 'role-b', text: `🔗 Гілка Б (24V) • Humsienk ${idx}, послідовно з Humsienk ${3 - idx}${on ? '' : ' • не підключена до інвертора'}` };
   }
   return { cls: '', text: '🔋 Додатковий акумулятор' };
 }
@@ -3245,9 +3266,9 @@ function renderCardsInner() {
       <div class="empty-state">
         <div class="empty-icon">🔋</div>
         <div style="font-weight:700; color:#e2e8f0; margin-bottom:4px;">Немає підключених акумуляторів</div>
-        <div>Натисніть на кнопку потрібного акумулятора зверху, щоб зчитати комірки та BMS</div>
+        <div>Торкніться батареї на вкладці «Схема», щоб підключити її по Bluetooth</div>
       </div>
-    ` + renderBleLog();
+    ` + renderAddDevice() + renderBleLog();
     return;
   }
 
@@ -3419,7 +3440,11 @@ function renderCardsInner() {
         </div>
       </div>
     `;
-  }).join('') + renderBleLog();
+  }).join('') + renderAddDevice() + renderBleLog();
+}
+
+function renderAddDevice() {
+  return `<button class="icon-btn add-dev-btn" onclick="connectBattery('all')">＋ Підключити інший BLE-пристрій</button>`;
 }
 
 
