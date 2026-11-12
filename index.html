@@ -3561,8 +3561,25 @@ function hxAnalyze() {
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
   const today = win(midnight.getTime());
   const week = win(Date.now() - HX_DAYS * 86400000);
-  const full = outages.filter(o => o.fromFull && o.ah > 1);
-  const deepest = full.sort((a, b) => b.ah - a.ah)[0] || null;
+  // A deep discharge often spans several outages with short grid bursts between them ("light for 5 min"): the battery
+  // gets a few Ah back but never reaches full. Chain them from a full start; net Ah = taken out − put back in between.
+  const runs = [];
+  let run = null;
+  for (const o of outages) {
+    if (o.fromFull) { if (run) runs.push(run); run = { t0: o.t0, t1: o.t1, ah: o.ah, minV: o.minV, n: 1 }; continue; }
+    if (!run) continue;
+    let back = 0, hole = false;
+    for (let i = 1; i < rows.length; i++) {
+      const p = rows[i - 1];
+      if (p[0] < run.t1 || p[0] >= o.t0) continue;
+      if (rows[i][0] - p[0] > CAP) hole = true;           // logger offline in between: can't tell what happened
+      if (!p[1] && p[3] > 0) back += p[3] * Math.min(rows[i][0] - p[0], CAP) / 3600000;
+    }
+    if (hole) { runs.push(run); run = null; continue; }
+    run.ah += o.ah - back; run.t1 = o.t1; run.minV = Math.min(run.minV, o.minV); run.n++;
+  }
+  if (run) runs.push(run);
+  const deepest = runs.filter(r => r.ah > 1).sort((a, b) => b.ah - a.ah)[0] || null;
   return { outages, today, week, deepest, first: rows.length ? rows[0][0] : null,
            avgW: week.hours >= 2 ? week.wh / week.hours : null };
 }
@@ -3721,7 +3738,7 @@ function hxRenderBattery(a) {
   const offV = etaParams().offV;
   const cap = d
     ? `<div class="hx-line hx-cap"><span>Перевірена ємність пари</span><b>${d.minV <= offV + 0.3 ? '≈' : 'не менше'} ${d.ah.toFixed(0)} Ah</b></div>
-       <div class="hx-dim">розряд ${hxDm(d.t0)} від повної до ${d.minV.toFixed(1)} V</div>`
+       <div class="hx-dim">розряд ${hxDm(d.t0)} від повної до ${d.minV.toFixed(1)} V${d.n > 1 ? ` • ${d.n} відключення поспіль, підзаряд між ними враховано` : ''}</div>`
     : `<div class="hx-line hx-cap"><span>Перевірена ємність пари</span><b>—</b></div>
        <div class="hx-dim">ще не було розряду від повної батареї</div>`;
   const keys = Object.keys(hxDiary).filter(k => (hxDiary[k] || []).length)
