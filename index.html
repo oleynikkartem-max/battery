@@ -3563,10 +3563,14 @@ function hxAnalyze() {
   const week = win(Date.now() - HX_DAYS * 86400000);
   // A deep discharge often spans several outages with short grid bursts between them ("light for 5 min"): the battery
   // gets a few Ah back but never reaches full. Chain them from a full start; net Ah = taken out − put back in between.
+  // The inverter under-reads battery current. Checked against both BMS on 12.11: on charge it shows 30.8 A
+  // where the BMS see 31.5–32.5 A (~4% low); on discharge it also rounds to 1.4 A steps, and a day's discharge
+  // came out ~15% below what the BMS counted. Capacity is scaled by these factors.
+  const K_DIS = 1.15, K_CHG = 1.04;
   const runs = [];
   let run = null;
   for (const o of outages) {
-    if (o.fromFull) { if (run) runs.push(run); run = { t0: o.t0, t1: o.t1, ah: o.ah, minV: o.minV, n: 1 }; continue; }
+    if (o.fromFull) { if (run) runs.push(run); run = { t0: o.t0, t1: o.t1, ah: o.ah * K_DIS, minV: o.minV, n: 1 }; continue; }
     if (!run) continue;
     let back = 0, hole = false;
     for (let i = 1; i < rows.length; i++) {
@@ -3576,7 +3580,7 @@ function hxAnalyze() {
       if (!p[1] && p[3] > 0) back += p[3] * Math.min(rows[i][0] - p[0], CAP) / 3600000;
     }
     if (hole) { runs.push(run); run = null; continue; }
-    run.ah += o.ah - back; run.t1 = o.t1; run.minV = Math.min(run.minV, o.minV); run.n++;
+    run.ah += o.ah * K_DIS - back * K_CHG; run.t1 = o.t1; run.minV = Math.min(run.minV, o.minV); run.n++;
   }
   if (run) runs.push(run);
   const deepest = runs.filter(r => r.ah > 1).sort((a, b) => b.ah - a.ah)[0] || null;
@@ -3738,7 +3742,7 @@ function hxRenderBattery(a) {
   const offV = etaParams().offV;
   const cap = d
     ? `<div class="hx-line hx-cap"><span>Перевірена ємність пари</span><b>${d.minV <= offV + 0.3 ? '≈' : 'не менше'} ${d.ah.toFixed(0)} Ah</b></div>
-       <div class="hx-dim">розряд ${hxDm(d.t0)} від повної до ${d.minV.toFixed(1)} V${d.n > 1 ? ` • ${d.n} відключення поспіль, підзаряд між ними враховано` : ''}</div>`
+       <div class="hx-dim">розряд ${hxDm(d.t0)} від повної до ${d.minV.toFixed(1)} V${d.n > 1 ? ` • ${d.n} відключення поспіль, підзаряд між ними враховано` : ''} • з поправкою на інвертор (+15%, звірено з BMS)</div>`
     : `<div class="hx-line hx-cap"><span>Перевірена ємність пари</span><b>—</b></div>
        <div class="hx-dim">ще не було розряду від повної батареї</div>`;
   const keys = Object.keys(hxDiary).filter(k => (hxDiary[k] || []).length)
