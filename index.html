@@ -3749,8 +3749,8 @@ function hxRenderBoiler() {
   else if (so.on && so.powerW > 20) { state = `Гріє • ${Math.round(so.powerW)} W`; cls = 'heat'; }
   else if (so.on) { state = 'Увімкнений • не гріє'; cls = 'on'; }
   else if (st.want === 'grid' && st.applied === false && st.gridSince) {
-    // the Worker waits for the grid to hold before heating: 1 min with live data from the server, 10 min on SmartESS
-    const t = new Date(st.gridSince + (st.wantLive ? 1 : 10) * 60e3 + (st.wantLive ? 60e3 : 0));   // + one cron minute
+    // the Worker waits 10 min of steady grid before heating (no sudden load on the grid; short bursts)
+    const t = new Date(st.gridSince + 10 * 60e3 + (st.wantLive ? 60e3 : 0));   // live: + one cron minute
     state = `Вимкнений • увімкну о ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
   }
   else { state = st.want === 'grid' ? 'Вимкнений' : 'Вимкнений • без світла'; }
