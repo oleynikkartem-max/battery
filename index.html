@@ -2895,6 +2895,7 @@ async function invPoll(force = false) {
     }
     if (Object.keys(st).length >= 5) { inv.settings = st; inv.lastSettings = Date.now(); }
     else if (force || Date.now() - inv.lastSettings > 3600000) await invReadSettings();
+    invApplyLive();
     inv.error = null;
     inv.lastPoll = Date.now();
     inv.nextAt = inv.data.ts + inv.uploadEvery;
@@ -2957,6 +2958,52 @@ async function invLoginFromForm() {
   }
 }
 
+// ===== Live inverter data: the Oracle server reads the logger every 3 s and pushes registers to the boiler
+// Worker; we read them from its status JSON (same address as the boiler card). SmartESS fills the rest.
+// Registers 201..: 201 mode (2 mains, 3 off-grid), 202 grid V×0.1, 203 grid Hz×0.01, 204 grid W,
+// 205–209 output L1 (V×0.1, A×0.1, Hz×0.01, W signed, VA), 210–214 output L2 (same), 215 battery V×0.1,
+// 216 battery A×0.1, 217 battery W, 219 PV V×0.1.
+const INV_LIVE_FRESH = 60000;
+const invLive = { data: null, at: 0, busy: false };
+function invLiveFresh() { return invLive.data && Date.now() - invLive.data.read < INV_LIVE_FRESH; }
+function invApplyLive() {
+  if (!invLiveFresh() || !inv.data) return;
+  const L = invLive.data, r = L.regs, sg = v => v > 32767 ? v - 65536 : v;
+  const mode = r[0] === 2 ? 'mains mode' : r[0] === 3 ? 'off-grid mode' : null;
+  const onBat = r[0] === 3;
+  const p1 = sg(r[7]), p2 = sg(r[12]);
+  let batA = sg(r[15]) / 10, batP = sg(r[16]);
+  if (onBat && batA > 0) batA = -batA;                       // sign as in invPoll: discharging on battery
+  if (onBat && batP > 0) batP = -batP;
+  Object.assign(inv.data, {
+    ts: L.read, live: true,
+    mode: mode ? invModeUa(mode) : inv.data.mode,
+    gridV: r[1] / 10, gridHz: r[2] / 100,
+    batV: r[14] / 10, batA, batP,
+    // L1 sometimes reads a large negative power with nothing on it; the flat's load is on L2
+    loadW: p2 + Math.max(0, p1), loadVA: r[13] + (p1 > 0 ? r[8] : 0),
+    pvV: r[18] / 10,
+  });
+}
+async function invLivePoll() {
+  const url = typeof hxBoilerUrl === 'function' ? hxBoilerUrl() : '';
+  if (!url || invLive.busy || document.hidden) return;
+  invLive.busy = true;
+  try {
+    const r = await fetch(url + '&json=1');
+    if (r.ok) {
+      const j = await r.json();
+      const L = j && j.live;
+      if (L && Array.isArray(L.regs) && L.regs.length >= 19 && L.read !== (invLive.data && invLive.data.read)) {
+        invLive.data = L; invLive.at = Date.now();
+        if (invLiveFresh() && inv.data) { invApplyLive(); renderCards(); }
+      }
+    }
+  } catch (e) {}
+  invLive.busy = false;
+}
+setInterval(invLivePoll, 5000);
+
 function invAgeText(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
   return m < 1 ? 'щойно' : (m < 60 ? `${m} хв тому` : `${Math.round(m / 60)} год тому`);
@@ -2996,7 +3043,7 @@ function renderInverterBlock(bmsBusV, reserveItem = '') {
   const line = `
     <div class="inv-line">
       <span><b>${d.mode || 'Інвертор'}</b></span>
-      <span>${inv.error ? '⚠️' : invAgeText(d.ts)}</span>
+      <span>${d.live && invLiveFresh() ? '🟢 наживо' : inv.error ? '⚠️' : invAgeText(d.ts)}</span>
     </div>`;
 
   // Diagnostics that used to sit on the main card
@@ -3048,6 +3095,7 @@ setInterval(() => {
   if (due) invPoll(false);
 }, 10000);
 invPoll(true);
+setTimeout(invLivePoll, 1500);
 
 // ===== History log (Δ, balancer, current, cells) persisted in localStorage =====
 const HIST_KEY = 'bms_studio_hist_v1';
@@ -3701,8 +3749,8 @@ function hxRenderBoiler() {
   else if (so.on && so.powerW > 20) { state = `Гріє • ${Math.round(so.powerW)} W`; cls = 'heat'; }
   else if (so.on) { state = 'Увімкнений • не гріє'; cls = 'on'; }
   else if (st.want === 'grid' && st.applied === false && st.gridSince) {
-    // the Worker waits for the grid to hold before heating (short "light for 5 min" bursts)
-    const t = new Date(st.gridSince + 10 * 60e3);
+    // the Worker waits for the grid to hold before heating: 1 min with live data from the server, 10 min on SmartESS
+    const t = new Date(st.gridSince + (st.wantLive ? 1 : 10) * 60e3 + (st.wantLive ? 60e3 : 0));   // + one cron minute
     state = `Вимкнений • увімкну о ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
   }
   else { state = st.want === 'grid' ? 'Вимкнений' : 'Вимкнений • без світла'; }
