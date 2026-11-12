@@ -3679,6 +3679,11 @@ function hxRenderBoiler() {
   else if (so.online === false) { state = 'Розетка не в мережі'; cls = 'bad'; }
   else if (so.on && so.powerW > 20) { state = `Гріє • ${Math.round(so.powerW)} W`; cls = 'heat'; }
   else if (so.on) { state = 'Увімкнений • не гріє'; cls = 'on'; }
+  else if (st.want === 'grid' && st.applied === false && st.gridSince) {
+    // the Worker waits for the grid to hold before heating (short "light for 5 min" bursts)
+    const t = new Date(st.gridSince + 10 * 60e3);
+    state = `Вимкнений • увімкну о ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  }
   else { state = st.want === 'grid' ? 'Вимкнений' : 'Вимкнений • без світла'; }
   // one red line only when something is wrong; silence means the automation is fine
   const problems = [];
