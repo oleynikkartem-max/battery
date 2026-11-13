@@ -47,6 +47,7 @@ public class HubService extends Service {
     static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     static final long POLL_MS = 5000, UPLOAD_MS = 5000, OP_TIMEOUT_MS = 4000, CONNECT_TIMEOUT_MS = 10 * 60000;
     static final long STALE_MS = 45000;   // no fresh data this long while "connected" -> reconnect
+    static final long SETUP_TIMEOUT_MS = 30000; // linked -> ready must take less than this
     static final long WRITE_GAP_MS = 220; // pause after each request to a BMS
 
     public static void start(Context ctx) {
@@ -161,6 +162,10 @@ public class HubService extends Service {
                 if (l.pending && now > l.connectDeadline) {
                     log(l.bms.name + ": still not connected, restarting the attempt");
                     fail(l, "не підключається");
+                } else if (l.connecting && !l.pending && !l.ready && now > l.connectDeadline) {
+                    // linked, but the setup (MTU, services, notifications) got stuck: start over
+                    log(l.bms.name + ": setup did not finish, reconnecting");
+                    fail(l, "не налаштувався");
                 }
             }
             for (Link l : links) {
@@ -225,8 +230,16 @@ public class HubService extends Service {
                     if (state == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
                         log(l.bms.name + ": connected");
                         l.pending = false;
+                        l.connectDeadline = SystemClock.elapsedRealtime() + SETUP_TIMEOUT_MS;
                         // link setup goes ahead of the other batteries' polls
-                        enqueueFront(l, () -> g.requestMtu(247), g::discoverServices);
+                        // services first, then a bigger MTU: Sandisolar sends its 115-byte reply in ONE
+                        // notification, cut to 20 bytes at the default MTU. Asking for the MTU before
+                        // discovery once hung the Sandisolar link (14.11 00:55), so discovery goes first.
+                        // both can take several seconds on this box: give them 15 s, not the usual 4 s,
+                        // or the next op starts while the stack is still busy and silently fails
+                        Op discover = slowOp(g::discoverServices), mtu = slowOp(() -> g.requestMtu(247));
+                        if (Bms.JBD.equals(l.bms.type)) enqueueFront(l, discover);
+                        else enqueueFront(l, discover, mtu);
                     } else {
                         log(l.bms.name + ": disconnected (status " + status + ")");
                         fail(l, "розʼєднано (" + status + ")");
@@ -294,6 +307,16 @@ public class HubService extends Service {
                     ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
             l.tx.setValue(data);
             return l.gatt.writeCharacteristic(l.tx);
+        };
+    }
+
+    /** A GATT op with a 15 s timeout instead of OP_TIMEOUT_MS. */
+    private Op slowOp(Op op) {
+        return () -> {
+            if (!op.start()) return false;
+            opTimeout = () -> { log("slow GATT op timeout"); opDone(); };
+            h.postDelayed(opTimeout, 15000);
+            return true;
         };
     }
 
