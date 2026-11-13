@@ -47,6 +47,7 @@ public class HubService extends Service {
     static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     static final long POLL_MS = 5000, UPLOAD_MS = 5000, OP_TIMEOUT_MS = 4000, CONNECT_TIMEOUT_MS = 10 * 60000;
     static final long STALE_MS = 45000;   // no fresh data this long while "connected" -> reconnect
+    static final long WRITE_GAP_MS = 220; // pause after each request to a BMS
 
     public static void start(Context ctx) {
         ctx.startForegroundService(new Intent(ctx, HubService.class));
@@ -171,7 +172,9 @@ public class HubService extends Service {
                         drop(l, "немає даних");
                         continue;
                     }
-                    if (ops.size() < 12) for (byte[] c : l.bms.pollCommands()) write(l, c);
+                    // a pause after each request, as the site did: the SJY (JBD) BMS drops a request
+                    // that comes right after the previous one
+                    if (ops.size() < 24) for (byte[] c : l.bms.pollCommands()) { write(l, c); enqueue(l, gapOp(WRITE_GAP_MS)); }
                 } else if (!l.connecting && now >= l.nextTry) {
                     connect(ad, l);       // background connect, outside the op queue: a battery that
                 }                         // is not reachable never stalls the others
@@ -291,6 +294,15 @@ public class HubService extends Service {
                     ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
             l.tx.setValue(data);
             return l.gatt.writeCharacteristic(l.tx);
+        };
+    }
+
+    /** Holds the queue for ms (lets the BMS answer before the next request). */
+    private Op gapOp(long ms) {
+        return () -> {
+            opTimeout = this::opDone;
+            h.postDelayed(opTimeout, ms);
+            return true;
         };
     }
 
