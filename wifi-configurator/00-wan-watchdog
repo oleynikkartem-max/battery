@@ -1,0 +1,4 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Termux:Boot entry: goes to ~/.termux/boot/ on the Mi Box.
+termux-wake-lock
+exec /data/data/com.termux/files/home/wan-watchdog.sh

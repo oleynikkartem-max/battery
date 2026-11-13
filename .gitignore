@@ -4,3 +4,4 @@ tools/backup_*.json
 __pycache__/
 local/
 sandisolar_claim/
+box-app/out/
