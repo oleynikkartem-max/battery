@@ -2783,8 +2783,15 @@ async function invAuth(usr, pwdSha1) {
 
 async function invCall(act, retry = true) {
   if (!inv.cfg.token || Date.now() > (inv.cfg.expiresAt || 0)) {
-    if (inv.cfg.pwdSha1) Object.assign(inv.cfg, await invAuth(inv.cfg.usr, inv.cfg.pwdSha1));
-    else if (hubOn()) Object.assign(inv.cfg, await hubInvSession());  // session from the hub Worker
+    if (inv.cfg.pwdSha1) {
+      try { Object.assign(inv.cfg, await invAuth(inv.cfg.usr, inv.cfg.pwdSha1)); }
+      catch (e) {
+        // the saved SmartESS password is old (changed 13.11): use the hub's session from now on
+        if (!hubOn()) throw e;
+        delete inv.cfg.pwdSha1;
+        Object.assign(inv.cfg, await hubInvSession());
+      }
+    } else if (hubOn()) Object.assign(inv.cfg, await hubInvSession());  // session from the hub Worker
     else throw new Error('Увійдіть в SmartESS');
     invSave();
   }
