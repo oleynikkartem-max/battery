@@ -1328,6 +1328,7 @@ function hubFetch(extra) {
 })();
 const hubState = { freshUntil: 0, age: null, err: null };
 function hubActive() { return hubOn() && Date.now() < hubState.freshUntil; }
+hubLoginBar();                           // no password yet: show only the password field, at once
 let activeTab = 'visual';
 let autoConnecting = false;
 let centralPollingBusy = false;
@@ -3912,7 +3913,7 @@ async function hubPoll() {
   try {
     const r = await hubFetch('');
     const j = await r.json();
-    if (r.status === 401) { hubForget('невірний пароль'); return; }
+    if (r.status === 401 || r.status === 429) { hubForget(j.error || 'невірний пароль'); return; }
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     const snap = j && j.snap;
     if (!snap || !Array.isArray(snap.bats)) throw new Error('приставка ще нічого не надіслала');
@@ -3968,22 +3969,31 @@ function hubRelease() {
   if (changed) renderCards();
 }
 
-// ---- password: asked once per browser ----
+// ---- password: asked once per browser; until then the page shows only the password field ----
 function hubLoginBar() {
   let el = document.getElementById('hub-login');
-  if (hubOn()) { if (el) el.remove(); return; }
-  if (el) return;
-  el = document.createElement('div');
-  el.id = 'hub-login';
-  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:50;max-width:520px;margin:0 auto;' +
-    'background:#0f2a2a;border:1px solid #2dd4bf;border-radius:14px;padding:12px 14px;color:#e2e8f0;' +
-    'display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:14px';
-  el.innerHTML = `<span>🔑 Дані з приставки (батареї, інвертор, бойлер)${hubState.err ? ` — <b style="color:#fca5a5">${hubState.err}</b>` : ''}</span>` +
-    '<button onclick="hubAskPassword()" style="background:#2dd4bf;color:#04201d;border:0;border-radius:10px;padding:8px 14px;font-weight:700">Увійти</button>';
-  document.body.appendChild(el);
+  if (hubOn()) {
+    if (el) el.remove();
+    document.documentElement.style.overflow = '';
+    return;
+  }
+  document.documentElement.style.overflow = 'hidden';
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'hub-login';
+    el.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#05080f;display:flex;align-items:center;justify-content:center;padding:16px';
+    el.innerHTML =
+      '<form onsubmit="event.preventDefault();hubAskPassword()" style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px">' +
+      '<input id="hub-pw" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Пароль" ' +
+      'style="font-size:20px;padding:14px 16px;border-radius:12px;border:1px solid #2dd4bf;background:#0b1220;color:#e2e8f0;text-align:center;outline:none">' +
+      '<button type="submit" style="font-size:17px;padding:13px;border:0;border-radius:12px;background:#2dd4bf;color:#04201d;font-weight:700">Увійти</button>' +
+      '<div id="hub-pw-err" style="min-height:20px;text-align:center;color:#fca5a5;font-size:14px"></div></form>';
+    document.body.appendChild(el);
+  }
+  document.getElementById('hub-pw-err').textContent = hubState.err || '';
 }
 function hubAskPassword() {
-  const p = (prompt('Пароль для даних з приставки') || '').trim();
+  const p = ((document.getElementById('hub-pw') || {}).value || '').trim();
   if (!p) return;
   hubPw = p;
   hubState.err = null;
