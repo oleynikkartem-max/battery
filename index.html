@@ -1305,12 +1305,20 @@ const OPTIONAL_SERVICES = [
 const STORAGE_KEY = 'bms_studio_saved_v2';
 const sessions = {};
 
-// Battery readings from the Mi Box (see hubPoll near the end). The read URL with its key is given
-// once as #hub=<url> and kept in localStorage, never in the repo.
+// Battery readings from the Mi Box (see hubPoll near the end). Access: the owner's password, asked
+// once and kept in localStorage (or the older #hub=<url-with-key> link). No secret is in the repo.
+const HUB_BASE = 'https://battery-hub.oleynik-70cca9.workers.dev/';
 const HUB_KEY = 'bms_studio_hub_v1';
+const HUB_PW_KEY = 'bms_studio_hub_pw_v1';
 const HUB_FRESH = 45000;                 // box data older than this = box is silent
-let hubUrl = null;
-try { hubUrl = localStorage.getItem(HUB_KEY); } catch (e) {}
+let hubUrl = null, hubPw = null;
+try { hubUrl = localStorage.getItem(HUB_KEY); hubPw = localStorage.getItem(HUB_PW_KEY); } catch (e) {}
+function hubOn() { return Boolean(hubUrl || hubPw); }
+// GET from the hub Worker; extra = 'setup=1' etc.
+function hubFetch(extra) {
+  if (hubUrl) return fetch(hubUrl + (extra ? '&' + extra : ''), { cache: 'no-store' });
+  return fetch(HUB_BASE + (extra ? '?' + extra : ''), { cache: 'no-store', headers: { 'x-pw': hubPw } });
+}
 (function takeHubFromHash() {
   const m = /[#&]hub=([^&]+)/.exec(location.hash || '');
   if (!m) return;
@@ -1319,7 +1327,7 @@ try { hubUrl = localStorage.getItem(HUB_KEY); } catch (e) {}
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
 })();
 const hubState = { freshUntil: 0, age: null, err: null };
-function hubActive() { return Boolean(hubUrl) && Date.now() < hubState.freshUntil; }
+function hubActive() { return hubOn() && Date.now() < hubState.freshUntil; }
 let activeTab = 'visual';
 let autoConnecting = false;
 let centralPollingBusy = false;
@@ -1517,7 +1525,7 @@ function restoreCachedSessions() {
 
 async function tryAutoConnectRemembered(fromUserTap = false) {
   if (autoConnecting || hubActive()) return;           // the box holds the batteries
-  if (hubUrl && hubState.age === null && !hubState.err) return;   // box not asked yet
+  if (hubOn() && hubState.age === null && !hubState.err) return;  // box not asked yet
   if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') return;
   autoConnecting = true;
   const statusEl = document.getElementById('live-status-text');
@@ -2467,7 +2475,9 @@ function strBDetect({ vA, iA, aOk, vB, iB, bOk }) {
   if (strB.pend !== ev) { strB.pend = ev; strB.pendAt = Date.now(); return; }
   if (Date.now() - strB.pendAt >= 20000) { strB.auto = ev; strB.pend = null; strBSave(); }
 }
-function strBState() { return strB.manual || strB.auto; }   // 'on' | 'off' | null (unknown)
+// Since 13.11.2026 string B is wired in permanently (the owner's words), so it is always 'on';
+// the auto/manual detection above is kept but no longer used.
+function strBState() { return 'on'; }
 
 function renderStringCard(o) {
   const st = o.state;   // 'on' | 'off' | null
@@ -2546,9 +2556,7 @@ function renderTopology(list) {
   }
   const stringBPower = (hs1 ? (hs1.data.power || 0) : 0) + (hs2 ? (hs2.data.power || 0) : 0);
   const fresh = x => x && x.connected && x.data && x.data.current !== undefined;
-  strBDetect({ vA: stringAVolt, iA: stringACurrent, aOk: stringAComplete && fresh(sandi) && fresh(sjy),
-               vB: stringBVolt, iB: stringBCurrent, bOk: stringBComplete && fresh(hs1) && fresh(hs2) });
-  const stringBState = strBState();                    // wiring state is remembered even if a BMS is out of BLE range
+  const stringBState = strBState();                    // always wired in
   const stringBActive = stringBState === 'on';
   const stringBUse = stringBActive && stringBComplete;   // its numbers can only be summed when both BMS are read
 
@@ -2713,7 +2721,7 @@ function renderTopology(list) {
       })}
       ${renderStringCard({
         icon: '🔋', title: 'Гілка Б · Humsienk', sub: '2 × 12V послідовно = 24V 100Ah',
-        state: stringBState, manualSel: strB.manual || '', volt: stringBComplete ? stringBVolt : 0,
+        state: stringBState, volt: stringBComplete ? stringBVolt : 0,
         slots: renderVisualBatterySlot(hs1, 'Humsienk 1', '1/2', 'Humsienk • 12V 100Ah', 'humsienk', false)
              + renderVisualBatterySlot(hs2, 'Humsienk 2', '2/2', 'Humsienk • 12V 100Ah', 'humsienk', false),
         balCls: balBCls, balIcon: stringBActive ? '⚖️' : '🔗', balLabel: stringBActive ? 'Балансир' : 'Між АКБ', balText: balBText,
@@ -2775,7 +2783,9 @@ async function invAuth(usr, pwdSha1) {
 
 async function invCall(act, retry = true) {
   if (!inv.cfg.token || Date.now() > (inv.cfg.expiresAt || 0)) {
-    Object.assign(inv.cfg, await invAuth(inv.cfg.usr, inv.cfg.pwdSha1));
+    if (inv.cfg.pwdSha1) Object.assign(inv.cfg, await invAuth(inv.cfg.usr, inv.cfg.pwdSha1));
+    else if (hubOn()) Object.assign(inv.cfg, await hubInvSession());  // session from the hub Worker
+    else throw new Error('Увійдіть в SmartESS');
     invSave();
   }
   const salt = String(Date.now());
@@ -3890,10 +3900,13 @@ setInterval(() => {
 // (hubUrl / hubState / hubActive are declared at the top of the script: Bluetooth code uses them.)
 
 async function hubPoll() {
-  if (!hubUrl || document.hidden) return;
+  hubLoginBar();
+  if (!hubOn() || document.hidden) return;
   try {
-    const r = await fetch(hubUrl, { cache: 'no-store' });
+    const r = await hubFetch('');
     const j = await r.json();
+    if (r.status === 401) { hubForget('невірний пароль'); return; }
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     const snap = j && j.snap;
     if (!snap || !Array.isArray(snap.bats)) throw new Error('приставка ще нічого не надіслала');
     hubState.age = j.now - (snap.rx || 0);
@@ -3948,11 +3961,74 @@ function hubRelease() {
   if (changed) renderCards();
 }
 
+// ---- password: asked once per browser ----
+function hubLoginBar() {
+  let el = document.getElementById('hub-login');
+  if (hubOn()) { if (el) el.remove(); return; }
+  if (el) return;
+  el = document.createElement('div');
+  el.id = 'hub-login';
+  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:50;max-width:520px;margin:0 auto;' +
+    'background:#0f2a2a;border:1px solid #2dd4bf;border-radius:14px;padding:12px 14px;color:#e2e8f0;' +
+    'display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:14px';
+  el.innerHTML = `<span>🔑 Дані з приставки (батареї, інвертор, бойлер)${hubState.err ? ` — <b style="color:#fca5a5">${hubState.err}</b>` : ''}</span>` +
+    '<button onclick="hubAskPassword()" style="background:#2dd4bf;color:#04201d;border:0;border-radius:10px;padding:8px 14px;font-weight:700">Увійти</button>';
+  document.body.appendChild(el);
+}
+function hubAskPassword() {
+  const p = (prompt('Пароль для даних з приставки') || '').trim();
+  if (!p) return;
+  hubPw = p;
+  hubState.err = null;
+  try { localStorage.setItem(HUB_PW_KEY, p); } catch (e) {}
+  hubLoginBar();
+  hubPoll().then(hubSetup);
+}
+function hubForget(why) {
+  hubPw = null;
+  hubState.err = why;
+  try { localStorage.removeItem(HUB_PW_KEY); } catch (e) {}
+  hubLoginBar();
+}
+
 function hubLine() {
-  if (!hubUrl) return '';
+  if (!hubOn()) return '';
   const st = hubActive() ? `🟢 дані ${Math.round(hubState.age / 1000)} с тому`
     : hubState.err ? `🔴 ${hubState.err}` : `🔴 мовчить${hubState.age !== null ? ' ' + Math.round(hubState.age / 1000) + ' с' : ''} — Bluetooth телефона`;
   return `<div class="row"><span>Приставка</span><b>${st}</b></div>`;
+}
+
+// A browser opened with the hub link gets its other settings from the hub Worker too: a SmartESS
+// session (the Worker logs in itself; no password or hash reaches the phone) and the boiler URL.
+async function hubFetchSetup() {
+  const r = await hubFetch('setup=1');
+  return r.json();
+}
+async function hubInvSession() {
+  const j = await hubFetchSetup();
+  if (!j.inv || !j.inv.token) throw new Error(j.invErr || 'немає сесії SmartESS');
+  return { token: j.inv.token, secret: j.inv.secret, expiresAt: j.inv.expiresAt };
+}
+async function hubSetup() {
+  if (!hubOn()) return;
+  const needInv = !inv.cfg, needBoiler = !hxBoilerUrl();
+  if (!needInv && !needBoiler) return;
+  try {
+    const j = await hubFetchSetup();
+    if (needBoiler && j.boilerUrl) {
+      try { localStorage.setItem(HX_BOILER_KEY, j.boilerUrl); } catch (e) {}
+      hxBoilerPoll(true);
+    }
+    if (needInv && j.inv && j.inv.token) {
+      inv.cfg = { usr: j.inv.usr, token: j.inv.token, secret: j.inv.secret, expiresAt: j.inv.expiresAt };
+      invSave();
+      await invPickDevice('');
+      invCloseModal();
+      await invPoll(true);
+    }
+  } catch (e) {
+    bleLog('налаштування з приставки: ' + (e.message || e));
+  }
 }
 
 setInterval(hubPoll, 5000);
@@ -3962,9 +4038,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 restoreCachedSessions();
 renderCards();
 hubPoll();
+hubSetup();
 window.addEventListener('load', () => {
   // give the box a moment to answer first, so the phone does not grab the batteries
-  setTimeout(() => tryAutoConnectRemembered(false), hubUrl ? 2500 : 0);
+  setTimeout(() => tryAutoConnectRemembered(false), hubOn() ? 2500 : 0);
 });
 </script>
 </body>
