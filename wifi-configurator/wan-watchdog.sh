@@ -199,9 +199,12 @@ dns_check() {
   done
   dns_next=$((SECONDS + 1800))     # at most one DNS-triggered reboot per 30 min
   router_reboot || { log "reboot command failed (DNS hang)"; return; }
-  wait_online "${WAITS%% *}" && sleep 20
+  # The router keeps answering for a few seconds after the command: wait until it really goes
+  # down, then for internet, then give its DNS up to 3 min (checked 2026-11-15: back in ~20 s).
   local i2
-  for i2 in 1 2 3 4 5 6; do dns_ok && break; sleep 10; done
+  for i2 in $(seq 1 30); do router_up || break; sleep 2; done
+  wait_online "${WAITS%% *}"
+  for i2 in $(seq 1 18); do dns_ok && break; sleep 10; done
   if dns_ok; then
     log "router DNS is back after reboot, $((SECONDS - t)) s"
     report "📶 О $clock роутер перестав роздавати адреси й імена (Wi-Fi не пускав пристрої), хоча інтернет був. Приставка перезавантажила роутер, через $(fmt_dur $((SECONDS - t))) все працює."
