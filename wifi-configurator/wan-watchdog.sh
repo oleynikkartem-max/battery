@@ -7,6 +7,8 @@
 #   wan-watchdog.sh              run the loop (started by ~/.termux/boot/00-wan-watchdog)
 #   wan-watchdog.sh login-test   log in to the router and print WAN status, no reboot
 #   wan-watchdog.sh reboot-now   log in and reboot the router immediately
+#   wan-watchdog.sh dns-test     check that the router's DNS/DHCP service answers
+# Also: if the internet is up but the router's DNS/DHCP hangs for about a minute, reboot it.
 #
 # Tunables can be overridden from the environment (used for testing).
 
@@ -19,6 +21,8 @@ CONFIRM=${CONFIRM:-3}                # extra failed rounds (3 s apart) before a 
 GRACE=${GRACE:-30}                   # silent period after the watchdog starts (Wi-Fi coming up)
 WAITS=${WAITS:-"240 480 960 1200"}   # wait for the internet after reboot 1, 2, 3, 4+ (seconds)
 RECONNECT_WAIT=${RECONNECT_WAIT:-40} # wait for the internet after a WAN reconnect before rebooting
+DNS_NAME=${DNS_NAME:-miwifi.com}     # answered by the router itself
+DNS_CONFIRM=${DNS_CONFIRM:-6}        # failed DNS rounds (10 s apart) before a reboot
 
 DIR=${DIR:-$HOME/.wan-watchdog}
 PASSFILE=${PASSFILE:-$HOME/.wan-watchdog/router_pass}   # router admin password, chmod 600
@@ -42,6 +46,19 @@ online() {
 }
 
 router_up() { /system/bin/ping -c1 -W2 "$ROUTER" >/dev/null 2>&1; }
+
+# The router's DNS/DHCP service (dnsmasq) is alive: it answers its own name miwifi.com.
+# That answer has TTL 0, so Android does not cache it and every check reaches the router.
+# 2026-11-15 this service hung: the internet worked (pings, the logger's open link), but
+# phones lost names and then could not join the Wi-Fi at all (no address from DHCP).
+dns_ok() {
+  local i
+  for i in 1 2; do
+    /system/bin/ping -c1 -W1 "$DNS_NAME" 2>&1 | head -n1 | grep -q "($ROUTER)" && return 0
+    sleep 1
+  done
+  return 1
+}
 
 # Prints the session token on success.
 router_login() {
@@ -131,6 +148,9 @@ case "$1" in
     wan_reconnect && echo "reconnect accepted" || echo "reconnect FAILED"
     for i in $(seq 1 30); do online && { echo "internet up $((SECONDS - t)) s after reconnect"; exit 0; }; sleep 2; done
     echo "internet still DOWN 60 s after reconnect"; exit 1 ;;
+  dns-test)
+    dns_ok && echo "router DNS: ok" || echo "router DNS: NOT answering"
+    exit 0 ;;
   tg-test)
     tg_send "${2:-🌐 Перевірка: сторож інтернету на Mi Box може писати вам сюди.}" && echo "sent" || { echo "send FAILED"; exit 1; }
     exit 0 ;;
@@ -166,10 +186,37 @@ wait_online() {
   return 1
 }
 
+# Internet is up but the router's DNS/DHCP does not answer: confirm for about a minute,
+# then reboot the router (a WAN reconnect does not restart that service).
+dns_check() {
+  local i t clock
+  t=$SECONDS; clock=$(date +%H:%M)
+  log "router DNS ($DNS_NAME) does not answer, internet is up; checking"
+  for ((i = 0; i < DNS_CONFIRM; i++)); do
+    sleep 10
+    dns_ok && { log "router DNS answers again after $((SECONDS - t)) s, no action"; return; }
+    online || { log "internet went down too, leaving it to the outage logic"; return; }
+  done
+  dns_next=$((SECONDS + 1800))     # at most one DNS-triggered reboot per 30 min
+  router_reboot || { log "reboot command failed (DNS hang)"; return; }
+  wait_online "${WAITS%% *}" && sleep 20
+  local i2
+  for i2 in 1 2 3 4 5 6; do dns_ok && break; sleep 10; done
+  if dns_ok; then
+    log "router DNS is back after reboot, $((SECONDS - t)) s"
+    report "📶 О $clock роутер перестав роздавати адреси й імена (Wi-Fi не пускав пристрої), хоча інтернет був. Приставка перезавантажила роутер, через $(fmt_dur $((SECONDS - t))) все працює."
+  else
+    log "router DNS still dead $((SECONDS - t)) s after reboot"
+    report "📶 О $clock роутер перестав роздавати адреси й імена (Wi-Fi не пускав пристрої). Приставка перезавантажила роутер, але це не допомогло — гляньте роутер."
+  fi
+}
+
 lan_lost=0
+dns_next=0     # no DNS-triggered reboot before this moment (backoff after a reboot)
 while :; do
   if online || ! confirmed_down; then
     if [ "$lan_lost" = 1 ]; then log "internet is up again"; lan_lost=0; fi
+    if [ "$SECONDS" -ge "$dns_next" ] && ! dns_ok; then dns_check; continue; fi
     flush_report
     sleep "$CHECK_EVERY"
     continue
@@ -205,20 +252,21 @@ while :; do
     # Every attempt: reconnect WAN first; only if that does not help, reboot.
     if router_up; then
       log "reconnecting WAN (attempt $n)"
-      wan_reconnect || log "WAN reconnect command failed"
-      if wait_online "$RECONNECT_WAIT"; then fixed="перепідключення інтернету на роутері"; break; fi
+      if wan_reconnect; then f="перепідключення інтернету на роутері"; else log "WAN reconnect command failed"; f=; fi
+      if wait_online "$RECONNECT_WAIT"; then fixed=$f; break; fi
       log "no internet ${RECONNECT_WAIT}s after WAN reconnect, rebooting router (attempt $n)"
     fi
     if router_up; then
-      router_reboot || log "reboot command failed"
+      if router_reboot; then f="перезавантаження роутера"; else log "reboot command failed"; f=; fi
     else
-      log "router does not answer on the LAN, cannot reboot it (attempt $n)"
+      log "router does not answer on the LAN, cannot reboot it (attempt $n)"; f=
     fi
-    if wait_online "$w"; then fixed="перезавантаження роутера"; break; fi
+    if wait_online "$w"; then fixed=$f; break; fi
     log "still no internet ${w}s after attempt $n"
   done
 
   took=$((SECONDS - down_at))
+  [ -n "$fixed" ] || fixed="повернувся сам (команди роутеру не пройшли — мабуть, його перезавантажили вручну)"
   log "internet is back, $took s after it went down, attempts: $n, fixed by: $fixed"
   msg="🌐 Інтернет удома зникав о $down_clock, не було $(fmt_dur "$took").
 Допомогло: $fixed"
